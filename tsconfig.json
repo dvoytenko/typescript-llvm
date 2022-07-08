@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    // "module": "ESNext",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "target": "es2019",
+    "moduleResolution": "node",
+    "sourceMap": true,
+    "outDir": "out",
+    "strictNullChecks": true,
+    "strictFunctionTypes": true
+  },
+  "watchOptions": {
+    "excludeDirectories": ["out"]
+  },
+  "lib": ["es2019"]
+}
