@@ -1,39 +1,5 @@
 import * as ts from "typescript";
 
-/*
-const filename = 'test.ts';
-const code = `
-  let test: number|string|null;
-  if (typeof test === 'string') {
-    const testString = test;
-    console.log(testString);
-  }
-`;
-
-const sourceFile = ts.createSourceFile(
-    filename, code, ts.ScriptTarget.Latest
-);
-
-function printRecursiveFrom(
-    node, indentLevel, sourceFile
-) {
-    const indentation = "-".repeat(indentLevel);
-    const syntaxKind = ts.SyntaxKind[node.kind];
-    const nodeText = node.getText(sourceFile);
-    console.log(`${indentation}${syntaxKind}: ${nodeText}`);
-
-    if (syntaxKind === 'Identifier') {
-
-    }
-
-    node.forEachChild(child =>
-        printRecursiveFrom(child, indentLevel + 1, sourceFile)
-    );
-}
-
-printRecursiveFrom(sourceFile, 0, sourceFile);
-*/
-
 const fileNames = ['./example/example1.ts'];
 const options: ts.CompilerOptions = {
   target: ts.ScriptTarget.Latest,
