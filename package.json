@@ -6,12 +6,14 @@
   "scripts": {
     "build": "tsc --project tsconfig.json",
     "run": "node ./out/src/index.js",
-    "build_and_run": "npm run build && npm run run"
+    "build_and_run": "npm run build && npm run run",
+    "build_and_run:watch": "nodemon -e ts,json --ignore out --ignore dist --exec \"npm run build_and_run\""
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@typescript/vfs": "^1.3.5",
+    "nodemon": "^2.0.19",
     "typescript": "^4.7.4"
   }
 }

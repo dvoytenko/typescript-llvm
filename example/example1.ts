@@ -1,6 +1,6 @@
 
-export function main(test: number|string|null): string|undefined {
-  if (typeof test === 'string') {
+export function main(test: number|string|null): number|undefined {
+  if (typeof test === 'number') {
     const testString = test;
     return testString;
   }
