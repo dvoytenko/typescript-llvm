@@ -12,11 +12,10 @@ declare i32 @puts(i8*)
 declare i32 @snprintf(i8*, i32, i8*, ...)
 
 @s1 = private unnamed_addr constant [11 x i8] c"add(1, 2):\00", align 1
-
 @frmt_4606706533159743250 = internal constant [3 x i8] c"%d\00"
 @s_17934988915447438835 = internal constant [2 x i8] c" \00"
 
-define i8* @concat(i8* %0, i8* %1) {
+define i8* @.concat(i8* %0, i8* %1) {
   %3 = alloca i8*, align 8
   %4 = alloca i8*, align 8
   %5 = alloca i8*, align 8
@@ -56,7 +55,7 @@ entry:
   %str = alloca i8, i8 20, align 1
   %to_str = call i32 (i8*, i32, i8*, ...) @snprintf(i8* %str, i32 50, i8* getelementptr inbounds ([3 x i8], [3 x i8]* @frmt_4606706533159743250, i64 0, i64 0), i32 %call)
 
-  %concat = call i8* @concat(
+  %concat = call i8* @.concat(
     i8* nonnull dereferenceable(1) getelementptr inbounds ([11 x i8], [11 x i8]* @s1, i64 0, i64 0),
     i8* %str)
   %p3 = tail call i32 @puts(i8* %concat)

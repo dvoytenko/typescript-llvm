@@ -2,6 +2,7 @@
 import * as path from 'path';
 import {promises as fsPromises} from 'fs';
 import { exec } from 'child_process';
+import { compile } from '../src/compiler';
 
 console.log('Any specific test specified? ', process.argv[2]);
 
@@ -38,6 +39,11 @@ async function test(file: string): Promise<void> {
     await fsPromises.mkdir(workDir, {recursive: true});
   }
 
+  const sourceFile = path.resolve(DATA_DIR, file);
+
+  compile(sourceFile);
+
+  /* QQQQ
   const llFile = path.resolve(DATA_DIR, file.replace('.ts', '.ll'));
   const result = await execLl(llFile);
   console.log('RESULT: ', result);
@@ -49,6 +55,7 @@ async function test(file: string): Promise<void> {
 
   const diff = await execDiff(origFile, resultFile);
   console.log('DIFF: ', diff);
+  */
 }
 
 function execLl(file: string): Promise<string> {

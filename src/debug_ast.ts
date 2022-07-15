@@ -1,6 +1,6 @@
 import * as ts from "typescript";
 
-const fileNames = ['./example/example1.ts'];
+const fileNames = ['./test/data/one.ts'];
 const options: ts.CompilerOptions = {
   target: ts.ScriptTarget.Latest,
   module: ts.ModuleKind.ESNext,

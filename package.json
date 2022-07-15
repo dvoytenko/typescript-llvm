@@ -5,9 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc --project tsconfig.json",
-    "run": "node ./out/src/index.js",
-    "build_and_run": "npm run build && npm run run",
-    "build_and_run:watch": "nodemon -e ts,json --ignore out --ignore dist --exec \"npm run build_and_run\"",
+    "debug_ast": "npm run build && node ./out/src/debug_ast.js",
+    "debug_ast:watch": "nodemon -e ts,json --ignore out --ignore dist --exec \"npm run debug_ast\"",
     "test": "npm run build && node ./out/test/index.js",
     "test:watch": "nodemon -e ts,json --ignore out --ignore dist --exec \"npm run test\""
   },
