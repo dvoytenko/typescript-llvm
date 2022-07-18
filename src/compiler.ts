@@ -27,9 +27,15 @@ class Compiler {
 
   private sourceFile: ts.SourceFile;
   private functions: Map<string, FunctionDeclaration> = new Map();
-  private exportedFunctions: Set<string> = new Set();
+  private toGenFunctions: Set<string> = new Set();
   private exprCounter: number = 0;
   private decls: Array<any> = [];
+  private context: llvm.LLVMContext;
+  private module: llvm.Module;
+  private builder: llvm.IRBuilder;
+  private refs: Map<ts.Node, llvm.Value> = new Map();
+  private lib: Map<string, llvm.Function> = new Map();
+  private libTypes: Map<string, llvm.FunctionType> = new Map();
 
   constructor(files: string[]) {
     this.program = ts.createProgram(files, options);
@@ -41,13 +47,17 @@ class Compiler {
       if (!sourceFile.isDeclarationFile) {
         printRecursiveFrom(this.checker, sourceFile, 0, sourceFile);
       }
-    }  
+    }
   }
 
   compile() {
     this.collectTopLevel();
     this.genTopLevel();
-    this.toLlvm();
+    // this.toLlvm();
+
+    console.log('');
+    console.log('IR:');
+    console.log(this.module.print());
   }
 
   collectTopLevel() {
@@ -57,31 +67,85 @@ class Compiler {
       }
       this.sourceFile = sourceFile;
       visitChildren(sourceFile, this.collectTopLevelNodeVisitor.bind(this));
-    }  
+    }
   }
 
   collectTopLevelNodeVisitor(node: ts.Node) {
     if (ts.isFunctionDeclaration(node) && node.name) {
       this.functions.set(node.name.getText(), node);
       if (isExported(node)) {
-        this.exportedFunctions.add(node.name.getText());
+        this.toGenFunctions.add(node.name.getText());
       }
     }
   }
 
   genTopLevel() {
-    for (const name of this.exportedFunctions) {
+    this.context = new llvm.LLVMContext();
+    this.module = new llvm.Module('demo', this.context);
+    this.builder = new llvm.IRBuilder(this.context);
+
+    // debug lib
+
+    // declare i32 @snprintf(i8*, i32, i8*, ...)
+    (() => {
+      const functionType = llvm.FunctionType.get(
+        this.builder.getInt32Ty(),
+        [
+          this.builder.getInt8PtrTy(),
+          this.builder.getInt32Ty(),
+          this.builder.getInt8PtrTy(),
+        ],
+        true);
+      const func = llvm.Function.Create(
+        functionType,
+        llvm.Function.LinkageTypes.ExternalLinkage,
+        "snprintf",
+        this.module
+      );
+      this.lib.set("snprintf", func);
+      this.libTypes.set("snprintf", functionType);
+    })();
+
+    // declare i32 @puts(i8*)
+    (() => {
+      const functionType = llvm.FunctionType.get(
+        this.builder.getInt32Ty(),
+        [ this.builder.getInt8PtrTy() ],
+        false);
+      const func = llvm.Function.Create(
+        functionType,
+        llvm.Function.LinkageTypes.ExternalLinkage,
+        "puts",
+        this.module
+      );
+      this.lib.set("puts", func);
+      this.libTypes.set("puts", functionType);
+    })();
+
+    for (const name of this.toGenFunctions) {
       const func = this.functions.get(name)!;
-      this.genFunction(func);
+      this.declFunction(func);
+    }
+
+    while (this.toGenFunctions.size > 0) {
+      for (const name of this.toGenFunctions) {
+        this.toGenFunctions.delete(name);
+        const func = this.functions.get(name)!;
+        this.genFunction(func);
+      }
     }
   }
 
-  genFunction(node: ts.FunctionDeclaration) {
-    const funcName = node.name!.getText();
-    const syntaxKind = ts.SyntaxKind[node.kind];
-    const nodeText = node.getText(this.sourceFile);
-    console.log(`${syntaxKind}: ${nodeText}`,
-      isExported(node));
+  private ref(node: ts.Node): llvm.Value {
+    const value = this.refs.get(node);
+    if (!value) {
+      throw new Error(`ref not found for ${ts.SyntaxKind[node.kind]} ${(node as unknown as FunctionDeclaration).name?.text}`);
+    }
+    return value;
+  }
+
+  declFunction(node: ts.FunctionDeclaration): llvm.Function {
+    const funcName = node.name!.text;
     if (!isConcrete(node)) {
       throw new Error(`not a concrete function: ${funcName}`);
     }
@@ -93,217 +157,161 @@ class Compiler {
       name: p.name.getText(),
       type: this.checker.typeToString(this.checker.getTypeAtLocation(p)),
     }));
-    
+
     this.exprCounter = 0;
-    const statements = node.body ? this.genStatement(node.body) : null;
 
-    const decl = {
-      def: 'function',
-      name: funcName,
-      returnType: returnTypeStr,
-      args,
-      body: statements,
-    };
-    this.decls.push(decl);
+    // TODO: map to actual types
+    const llvmReturnType = this.builder.getInt32Ty();
+    const llvmArgs = args.map(arg => this.builder.getInt32Ty());
 
-    console.log(JSON.stringify(decl, undefined, 2));
+    const functionType = llvm.FunctionType.get(
+      llvmReturnType, llvmArgs, false);
+    const func = llvm.Function.Create(
+      functionType,
+      llvm.Function.LinkageTypes.ExternalLinkage,
+      funcName,
+      this.module
+    );
 
-    /*
-    function add(a: number, b: number) {
-      return a + b;
+    this.refs.set(node, func);
+    for (let i = 0; i < args.length; i++) {
+      this.refs.set(node.parameters[i], func.getArg(i));
     }
 
-    define i32 @add(i32 %0, i32 %1) {
-    entry:
-      %2 = add i32 %0, %1
-      ret i32 %2
-    }
-     */
+    return func;
   }
 
-  genStatement(node: ts.Statement): any[] {
-    let res: any[] = [];
+  genFunction(node: ts.FunctionDeclaration) {
+    const funcName = node.name!.text;
+    const func = this.module.getFunction(funcName);
+    if (!func) {
+      throw new Error(`Function not found: ${funcName}`);
+    }
 
+    if (node.body) {
+      const entryBB = llvm.BasicBlock.Create(this.context, 'entry', func);
+      this.builder.SetInsertPoint(entryBB);
+      this.genStatement(func, node.body);
+    }
+
+    if (llvm.verifyFunction(func)) {
+      throw new Error(`Verifying function failed: ${funcName}`);
+    }
+  }
+
+  genStatement(func: llvm.Function, node: ts.Statement) {
     if (ts.isBlock(node)) {
       for (const st of node.statements) {
-        res = res.concat(this.genStatement(st));
+        this.genStatement(func, st);
       }
     } else if (ts.isReturnStatement(node)) {
       if (node.expression) {
-        const [instr, value] = this.genExpr(node.expression);
-        res = res.concat(instr);
-        res = res.concat({def: 'ret', value});
+        const value = this.genExpr(node.expression);
+        this.builder.CreateRet(value);
       } else {
-        res = res.concat({def: 'ret'});
+        this.builder.CreateRetVoid();
       }
     } else if (ts.isExpressionStatement(node)) {
-      const [instr, value] = this.genExpr(node.expression);
-      res = res.concat(instr);
+      this.genExpr(node.expression);
     } else {
       throw new Error(`unknown statement: ${ts.SyntaxKind[node.kind]}`);
     }
-
-    return res;
   }
 
-  genExpr(node: ts.Expression): [any[], any] {
+  genExpr(node: ts.Expression) {
     if (ts.isCallExpression(node)) {
-      let [instr, value] = this.genExpr(node.expression);
-      const args: any[] = [];
-      for (const arg of node.arguments) {
-        let [argInstr, argValue] = this.genExpr(arg);
-        instr = instr.concat(argInstr);
-        args.push(argValue);
+      const expr = node.expression;
+
+      // console.log pragma
+      if (ts.isPropertyAccessExpression(expr) &&
+          ts.isIdentifier(expr.expression) &&
+          expr.expression.text === 'console' &&
+          expr.name.text === 'log') {
+        
+        let fmt = '';
+        const args: llvm.Value[] = [];
+        for (const arg of node.arguments) {
+          if (fmt.length > 0) {
+            fmt += ' ';
+          }
+          if (ts.isStringLiteral(arg)) {
+            fmt += arg.text;
+          } else {
+            // TODO: extract type from the signature and use
+            // correct mask.
+            fmt += '%d';
+            args.push(this.genExpr(arg));
+          }
+        }
+
+        const fmtPtr = this.builder.CreateGlobalStringPtr(fmt);
+        const strPtr = this.builder.CreateAlloca(
+          this.builder.getInt8Ty(),
+          this.builder.getInt32(1000)
+        );
+        this.builder.CreateCall(
+          this.libTypes.get("snprintf")!,
+          this.lib.get("snprintf")!,
+          [
+            strPtr,
+            this.builder.getInt32(1000),
+            this.builder.CreateInBoundsGEP(
+              this.builder.getInt8PtrTy(),
+              fmtPtr,
+              []
+            ),
+            ...args,
+          ]
+        );
+        this.builder.CreateCall(
+          this.libTypes.get("puts")!,
+          this.lib.get("puts")!,
+          [ strPtr ]
+        );
+        return null;
       }
-      instr = instr.concat({
-        def: 'call',
-        func: value,
-        args,
-        to: '%call.x',
-        sig: this.checker.signatureToString(
-          this.checker.getResolvedSignature(node)!
-        ),
-        retType: this.checker.typeToString(
-          this.checker.getReturnTypeOfSignature(
-            this.checker.getResolvedSignature(node)!,
-          )
-        ),
-      });
-      return [instr, '%call.x'];
+
+      const funcRef = this.genExpr(expr);
+      const args = node.arguments.map(arg => this.genExpr(arg));
+
+      // sig: this.checker.signatureToString(
+      //   this.checker.getResolvedSignature(node)!
+      // ),
+      // retType: this.checker.typeToString(
+      //   this.checker.getReturnTypeOfSignature(
+      //     this.checker.getResolvedSignature(node)!,
+      //   )
+      // ),
+
+      return this.builder.CreateCall(funcRef, args);
     } else if (ts.isIdentifier(node)) {
-      const idName = node.getText();
-      let value = '';
-
-      const func = this.functions.get(idName);
-      if (func) {
-        this.genFunction(func);
-        value = '@' + idName;
-      } else {
-        value = '%' + idName;
+      const idName = node.text;
+      const symbol = this.checker.getSymbolAtLocation(node);
+      if (!symbol) {
+        throw new Error(`no symbol for identifier ${idName}`);
+      }
+      const decl = symbol.valueDeclaration;
+      if (!decl) {
+        throw new Error(`no declaration for identifier ${idName}`);
       }
 
-      // {def: 'load', what: node.getText(), to: funcName}
-      return [[], value];
+      if (ts.isFunctionDeclaration(decl)) {
+        this.declFunction(decl);
+        this.toGenFunctions.add(idName);
+      }
+
+      return this.ref(decl);
     } else if (ts.isNumericLiteral(node)) {
-      // TODO: read const in some cases?
-      return [[], {def: 'const', value: node.getText()}];
+      // TODO: type
+      return this.builder.getInt32(parseInt(node.text, 10));
     } else if (ts.isBinaryExpression(node)) {
-      const [leftInstr, leftValue] = this.genExpr(node.left);
-      const [rightInstr, rightValue] = this.genExpr(node.right);
-      return [
-        [
-          ...leftInstr,
-          ...rightInstr,
-          {
-            def: 'bin',
-            left: leftValue,
-            right: rightValue,
-            op: node.operatorToken.getText(),
-            to: '%bin.x',
-          },
-        ], '%bin.x'];
+      const left = this.genExpr(node.left);
+      const right = this.genExpr(node.right);
+      // QQQ: node.operatorToken.getText()
+      return this.builder.CreateAdd(left, right);
     } else {
       throw new Error(`unknown expression: ${ts.SyntaxKind[node.kind]}`);
     }
-  }
-
-  toLlvm() {
-    const context = new llvm.LLVMContext();
-    const module = new llvm.Module('demo', context);
-    const builder = new llvm.IRBuilder(context);
-
-    for (const decl of this.decls) {
-      this.toLlvmDecl(decl, null, builder, module, context);
-    }
-
-    console.log('');
-    console.log('IR:');
-    console.log(module.print());
-  }
-
-  toLlvmDecl(decl: any, parent: llvm.Function|null, builder: llvm.IRBuilder, module: llvm.Module, context: llvm.LLVMContext) {
-    if (decl.def === 'function') {
-      // TODO: def.returnType, def.args[].type
-      const returnType = builder.getInt32Ty();
-      const argTypes = decl.args.map(arg => builder.getInt32Ty());
-      const functionType = llvm.FunctionType.get(returnType, argTypes, false);
-      const func = llvm.Function.Create(
-        functionType,
-        llvm.Function.LinkageTypes.ExternalLinkage,
-        decl.name,
-        module
-      );
-
-      if (decl.body) {
-        const entryBB = llvm.BasicBlock.Create(context, 'entry', func);
-        builder.SetInsertPoint(entryBB);
-
-        for (const instr of decl.body) {
-          this.toLlvmDecl(instr, func, builder, module, context);
-        }
-      }
-    } else if (decl.def === 'bin') {
-      let result;
-      if (decl.op === '+') {
-        // QQQQ
-        const left = parent!.getArg(0);
-        const right = parent!.getArg(1);
-        result = builder.CreateAdd(left, right, decl.to);
-        console.log('RES: ', result);
-      } else {
-        throw new Error(`unknown op: ${decl.op}`);
-      }
-    } else if (decl.def === 'ret') {
-      // QQQQ
-      // builder.CreateRet(decl.value);
-    } else if (decl.def === 'call') {
-      // %call = call i32 @add(i32 1, i32 2)
-
-      // QQQQ
-      const func: llvm.Function = (() => {
-        const returnType = builder.getInt32Ty();
-        const argTypes = [builder.getInt32Ty(), builder.getInt32Ty()];
-        const functionType = llvm.FunctionType.get(returnType, argTypes, false);
-        return llvm.Function.Create(
-          functionType,
-          llvm.Function.LinkageTypes.ExternalLinkage,
-          decl.func,
-          module
-        );        
-      })();
-
-      // QQQQ
-      const args = [builder.getInt32(1), builder.getInt32(2)];
-
-      const call = builder.CreateCall(func, args, decl.to);
-      /*
-        {
-          "def": "call",
-          "func": "%@add",
-          "args": [
-            {
-              "def": "const",
-              "value": "1"
-            },
-            {
-              "def": "const",
-              "value": "2"
-            }
-          ],
-          "to": "%call.x",
-          "sig": "(a: number, b: number): number",
-          "retType": "number"
-        },
-       */
-    } else {
-      throw new Error(`unknown def: ${decl.def}`);
-    }
-
-    /* TODO
-      if (llvm.verifyFunction(func)) {
-          throw 'Verifying function failed';
-      }
-      */
   }
 }
 
@@ -331,7 +339,7 @@ function printRecursiveFrom(
   }
 
   node.forEachChild(child =>
-      printRecursiveFrom(checker, child, indentLevel + 1, sourceFile)
+    printRecursiveFrom(checker, child, indentLevel + 1, sourceFile)
   );
 }
 
