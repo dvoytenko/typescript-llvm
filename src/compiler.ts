@@ -302,12 +302,12 @@ class Compiler {
 
       return this.ref(decl);
     } else if (ts.isNumericLiteral(node)) {
-      // TODO: type
+      // TODO: type (llvm.ConstantFP.get(this.builder.getFloatTy(), 1.4))
       return this.builder.getInt32(parseInt(node.text, 10));
     } else if (ts.isBinaryExpression(node)) {
       const left = this.genExpr(node.left);
       const right = this.genExpr(node.right);
-      // QQQ: node.operatorToken.getText()
+      // TODO: node.operatorToken.getText()
       return this.builder.CreateAdd(left, right);
     } else {
       throw new Error(`unknown expression: ${ts.SyntaxKind[node.kind]}`);
