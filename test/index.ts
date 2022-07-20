@@ -31,6 +31,9 @@ async function run(dir: string) {
 
 async function test(file: string): Promise<void> {
   console.log('TS FILE: ', file);
+  if (!file.includes('two')) {
+    return;
+  }
 
   const workDir = path.dirname(path.resolve(WORK_DIR, file));
   console.log('WORK DIR: ', workDir);
@@ -41,7 +44,11 @@ async function test(file: string): Promise<void> {
 
   const sourceFile = path.resolve(DATA_DIR, file);
 
-  compile(sourceFile);
+  const ll = compile(sourceFile);
+  const llFile = path.resolve(workDir, file.replace('.ts', '.ll'));
+  await fsPromises.writeFile(llFile, ll);
+  const result = await execLl(llFile);
+  console.log('RESULT: ', result);
 
   /* QQQQ
   const llFile = path.resolve(DATA_DIR, file.replace('.ts', '.ll'));
