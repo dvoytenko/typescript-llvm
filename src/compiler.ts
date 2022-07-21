@@ -1,5 +1,5 @@
-import ts, { FunctionDeclaration } from "typescript";
-import llvm from 'llvm-bindings';
+import ts, { FunctionDeclaration, ParameterDeclaration, PropertyAssignment } from "typescript";
+import llvm, { PointerType } from 'llvm-bindings';
 
 const options: ts.CompilerOptions = {
   target: ts.ScriptTarget.Latest,
@@ -18,6 +18,7 @@ enum Type {
   UNDEFINED = 0,
   NULL = 1,
   NUMBER = 2,
+  OBJECT = 3,
 }
 
 export function compile(file: string) {
@@ -51,6 +52,7 @@ class Compiler {
   private minusOneBox: llvm.GlobalVariable;
   private boxType: llvm.StructType;
   private malloc: llvm.Function;
+  private structShapes: Map<llvm.Type, any> = new Map();
 
   constructor(files: string[]) {
     this.program = ts.createProgram(files, options);
@@ -266,8 +268,31 @@ class Compiler {
     return value;
   }
 
-  private isBoxPointer(type: llvm.Type) {
-    return llvm.Type.isSameType(type, this.boxType.getPointerTo());
+  declObjType(type: ts.Type, node: ts.Node) {
+    const key = `Obj<${this.checker.typeToString(type)}>`;
+    let objType = this.libStructs.get(key);
+    if (!objType) {
+      const shape: Array<{ name: string; type: string }> = [];
+      for (const prop of type.getProperties()) {
+        const propName = prop.name;
+        const propType = this.checker.getTypeOfSymbolAtLocation(prop, node);
+        const propTypeStr = this.checker.typeToString(propType);
+        shape.push({ name: propName, type: propTypeStr });
+      }
+      objType = llvm.StructType.create(
+        this.context,
+        // TODO: types.
+        shape.map(prop => this.builder.getInt32Ty()),
+        key
+      );
+      this.libStructs.set(key, objType);
+      this.structShapes.set(objType, shape);
+    }
+    return objType;
+  }
+
+  private getType(type: llvm.Type): llvm.Type {
+    return this.libStructs.get(typeName(type)) ?? type;
   }
 
   declFunction(node: ts.FunctionDeclaration): llvm.Function {
@@ -279,19 +304,36 @@ class Compiler {
     const returnType = this.checker.getReturnTypeOfSignature(this.checker.getSignatureFromDeclaration(node)!);
     const returnTypeStr = this.checker.typeToString(returnType);
 
+    const computeTypeShape = (p: ParameterDeclaration) => {
+      const type = this.checker.getTypeAtLocation(p);
+      const props = type.getProperties();
+      if ((type.flags & ts.TypeFlags.Object) === 0) {
+        return null;
+      }
+      const objType = this.declObjType(type, node);
+      return {
+        str: this.checker.typeToString(type),
+        objType,
+      };
+    };
+
     const args = node.parameters.map(p => ({
       name: p.name.getText(),
       type: this.checker.typeToString(this.checker.getTypeAtLocation(p)),
+      shape: computeTypeShape(p),
     }));
 
     this.exprCounter = 0;
 
-    // TODO: map to actual types
+    // TODO: map to actual types. everything below is wrong.
     // TODO: proper `|null` check.
     const llvmReturnType = returnTypeStr.endsWith('| null') ?
       this.boxType.getPointerTo() :
       this.builder.getInt32Ty();
     const llvmArgs = args.map(arg => {
+      if (arg.shape) {
+        return arg.shape.objType.getPointerTo();
+      }
       if (arg.type.endsWith('| null')) {
         return this.boxType.getPointerTo();
       }
@@ -309,7 +351,11 @@ class Compiler {
 
     this.refs.set(node, func);
     for (let i = 0; i < args.length; i++) {
-      this.refs.set(node.parameters[i], func.getArg(i));
+      const arg = func.getArg(i);
+      const argType = llvmArgs[i];
+      // Fixing `getType()`.
+      // Object.defineProperty(arg, 'getType', {value: () => argType});
+      this.refs.set(node.parameters[i], arg);
     }
 
     return func;
@@ -327,7 +373,7 @@ class Compiler {
       this.builder.SetInsertPoint(entryBB);
       // TODO: type
       this.retval = this.builder.CreateAlloca(
-        this.isBoxPointer(func.getReturnType()) ?
+        isBoxPointer(func.getReturnType()) ?
           this.boxType.getPointerTo() :
           this.builder.getInt32Ty(),
         null,
@@ -335,14 +381,14 @@ class Compiler {
       );
 
       // TODO: is this at all necessary or too paranoid?
-      // if (this.isBoxPointer(func.getReturnType())) {
+      // if (isBoxPointer(func.getReturnType())) {
       //   this.builder.CreateStore(this.undefinedBox, this.retval);
       // }
 
       this.genStatement(func, node.body);
 
       const ret = this.builder.CreateLoad(
-        this.isBoxPointer(func.getReturnType()) ?
+        isBoxPointer(func.getReturnType()) ?
           this.boxType.getPointerTo() :
           this.builder.getInt32Ty(),
         this.retval);
@@ -427,7 +473,7 @@ class Compiler {
             // TODO: extract type from the signature and use
             // correct mask.
             const value = this.genExpr(arg);
-            if (this.isBoxPointer(value.getType())) {
+            if (isBoxPointer(value.getType())) {
               fmt += "box<%d,%d>";
               // public CreateLoad(type: Type, ptr: Value, name?: string): LoadInst;
               // public CreateGEP(type: Type, ptr: Value, idxList: Value[], name?: string): Value;
@@ -492,14 +538,8 @@ class Compiler {
       const funcRef = this.genExpr(expr);
       const args = node.arguments.map((arg, index) => {
         let value = this.genExpr(arg);
-        // console.log('ARG: ', arg, value,
-        //   this.isBoxPointer(funcRef.getArg(index).getType()),
-        //   this.isBoxPointer(value.getType()));
-        if (this.isBoxPointer(funcRef.getArg(index).getType()) &&
-          !this.isBoxPointer(value.getType())) {
-          //QQQQ
-          // %11 = call i8* @malloc(i64 %10)
-          // callee: Function, args: Value[]
+        if (isBoxPointer(funcRef.getArg(index).getType()) &&
+          !isBoxPointer(value.getType())) {
           const ptr = this.builder.CreateBitCast(
             this.builder.CreateCall(
               this.malloc,
@@ -559,9 +599,10 @@ class Compiler {
       const left = this.genExpr(node.left);
       const right = this.genExpr(node.right);
       const op = node.operatorToken;
-      if (op.kind === ts.SyntaxKind.PlusToken) {
+      if (op.kind === ts.SyntaxKind.PlusToken ||
+          op.kind === ts.SyntaxKind.AsteriskToken) {
         let vLeft = left, vRight = right;
-        if (this.isBoxPointer(left.getType())) {
+        if (isBoxPointer(left.getType())) {
           vLeft = this.builder.CreateLoad(
             this.builder.getInt32Ty(),
             this.builder.CreateGEP(
@@ -574,7 +615,7 @@ class Compiler {
             )
           );
         }
-        if (this.isBoxPointer(right.getType())) {
+        if (isBoxPointer(right.getType())) {
           vRight = this.builder.CreateLoad(
             this.builder.getInt32Ty(),
             this.builder.CreateGEP(
@@ -588,10 +629,21 @@ class Compiler {
           );
         }
 
-        let res = this.builder.CreateAdd(vLeft, vRight);
+        let res;
+        switch (op.kind) {
+          case ts.SyntaxKind.PlusToken:
+            res = this.builder.CreateAdd(vLeft, vRight);
+            break;
+          case ts.SyntaxKind.AsteriskToken:
+            res = this.builder.CreateMul(vLeft, vRight);
+            break;
+          default:
+            throw new Error(`unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`);
+        }
 
-        if (this.isBoxPointer(left.getType()) ||
-            this.isBoxPointer(right.getType())) {
+        // TODO: when/who/why should box the values?
+        if (isBoxPointer(left.getType()) ||
+          isBoxPointer(right.getType())) {
           const ptr = this.builder.CreateBitCast(
             this.builder.CreateCall(
               this.malloc,
@@ -646,6 +698,70 @@ class Compiler {
         return this.builder.CreateICmpEQ(left, right);
       }
       throw new Error(`unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`);
+    } else if (ts.isObjectLiteralExpression(node)) {
+      // TODO: dedup object structure.
+
+      // const symbol = this.checker.getSymbolAtLocation(node);
+      // const type = this.checker.getTypeOfSymbolAtLocation(symbol!, node);
+      const type = this.checker.getTypeAtLocation(node);
+
+      const objType = this.declObjType(type, node);
+
+      const objInst = llvm.ConstantStruct.get(
+        objType,
+        // TODO: more nuance to ordering, etc.
+        node.properties.map(prop =>
+          this.genExpr((prop as ts.PropertyAssignment).initializer))
+      );
+
+      const ptr = this.builder.CreateBitCast(
+        this.builder.CreateCall(
+          this.malloc,
+          // TODO: sizeof()
+          [this.builder.getInt64(100)]
+        ),
+        objType.getPointerTo()
+      );
+      this.builder.CreateStore(objInst, ptr);
+
+      return ptr;
+    } else if (ts.isPropertyAccessExpression(node)) {
+
+      let ptr: llvm.Value;
+      let objType: llvm.Type;
+
+      const target = this.genExpr(node.expression);
+      if (target.getType().isStructTy()) {
+        objType = this.getType(target.getType());
+        ptr = this.builder.CreateAlloca(objType);
+        this.builder.CreateStore(target, ptr);
+      } else {
+        ptr = target;
+        objType = this.getType((ptr.getType() as llvm.PointerType).getPointerElementType());
+      }
+
+      const shape = this.structShapes.get(objType) as [{name: string}];
+      if (!shape) {
+        throw new Error('shape not found for object type ???');
+      }
+
+      const propName = node.name.text;
+      const propIndex = shape.findIndex(p => p.name === propName);
+
+      const value = this.builder.CreateLoad(
+        // TODO: type
+        this.builder.getInt32Ty(),
+        this.builder.CreateGEP(
+          objType,
+          ptr,
+          [
+            this.builder.getInt32(0),
+            this.builder.getInt32(propIndex),
+          ]
+        )
+      );
+
+      return value;
     } else {
       throw new Error(`unknown expression: ${ts.SyntaxKind[node.kind]}`);
     }
@@ -694,4 +810,56 @@ function isExported(node: ts.Node): boolean {
 function isConcrete(func: ts.FunctionDeclaration): boolean {
   // TODO: generics, unions, etc.
   return true;
+}
+
+function typeName(type: llvm.Type) {
+  switch (type.getTypeID()) {
+    case llvm.Type.TypeID.PointerTyID:
+      return typeName(type.getPointerElementType()) + "*";
+    case llvm.Type.TypeID.FloatTyID:
+      return "float";
+    case llvm.Type.TypeID.DoubleTyID:
+      return "double";
+    case llvm.Type.TypeID.VoidTyID:
+      return "void";
+    case llvm.Type.TypeID.LabelTyID:
+      return "label";
+    case llvm.Type.TypeID.MetadataTyID:
+      return "metadata";
+    case llvm.Type.TypeID.TokenTyID:
+      return "token";
+    case llvm.Type.TypeID.IntegerTyID:
+      if (type.isIntegerTy(1)) {
+        return 'i1';
+      }
+      if (type.isIntegerTy(8)) {
+        return 'i8';
+      }
+      if (type.isIntegerTy(16)) {
+        return 'i16';
+      }
+      if (type.isIntegerTy(32)) {
+        return 'i32';
+      }
+      if (type.isIntegerTy(64)) {
+        return 'i64';
+      }
+      return "integer";
+    case llvm.Type.TypeID.FunctionTyID:
+      return "function";
+    case llvm.Type.TypeID.ArrayTyID:
+      // TODO: getElementType
+      return "array";
+    case llvm.Type.TypeID.FixedVectorTyID:
+      return "vector";
+    case llvm.Type.TypeID.ScalableVectorTyID:
+      return "svector";
+    case llvm.Type.TypeID.StructTyID:
+      return (type as llvm.StructType).getName();
+  }
+  return `TY${type.getTypeID()}`;
+}
+
+function isBoxPointer(type: llvm.Type) {
+  return typeName(type) === 'Box*';
 }
