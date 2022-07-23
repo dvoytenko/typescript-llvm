@@ -31,7 +31,7 @@ async function run(dir: string) {
 
 async function test(file: string): Promise<void> {
   console.log('TS FILE: ', file);
-  if (!file.includes('three')) {
+  if (!file.includes('four')) {
     return;
   }
 

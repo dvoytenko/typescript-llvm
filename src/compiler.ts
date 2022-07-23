@@ -23,6 +23,11 @@ enum Type {
 
 type Shape = Array<{name: string; type: string}>;
 
+interface IfcType {
+  id: number;
+  shape: Shape;
+}
+
 const propStartIndex = 1; // after vtable
 
 export function compile(file: string) {
@@ -60,7 +65,10 @@ class Compiler {
   private vtableType: llvm.StructType;
   private itableType: llvm.StructType;
   private structVtables: Map<string, llvm.Value> = new Map();
-  private ifcShapes: Map<string, Shape> = new Map();
+  private ifcTypes: Map<string, IfcType> = new Map();
+  private baseObjType: llvm.StructType;
+  private collectVtable: Map<string, Array<{id: number, itable: llvm.Constant}>> = new Map();
+  private ifcIdCounter: number = 0;
 
   constructor(files: string[]) {
     this.program = ts.createProgram(files, options);
@@ -79,11 +87,52 @@ class Compiler {
     this.collectTopLevel();
     this.genTopLevel();
     // this.toLlvm();
+    this.genComplete();
 
     console.log('');
     console.log('IR:');
     console.log(this.module.print());
     return this.module.print();
+  }
+
+  genComplete() {
+    console.log('ITABLES: ', this.collectVtable);
+    for (const [key, list] of this.collectVtable.entries()) {
+      const vtable = this.structVtables.get(key)!;
+      const itables = list.map(({itable}) => itable);
+
+      // TODO: just reinitialize the itable_array const.
+      const itableArrayType = llvm.ArrayType.get(
+        llvm.PointerType.get(this.itableType, 0),
+        itables.length
+      );
+      const itableArray = new llvm.GlobalVariable(
+        this.module,
+        /* type */ itableArrayType,
+        /* isConstant */ true,
+        /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
+        /* initializer */ llvm.ConstantArray.get(
+          itableArrayType,
+          itables
+        ),
+        `itable_array<${key}>_upd`
+      );
+
+      (vtable as llvm.GlobalVariable).setInitializer(
+        llvm.ConstantStruct.get(
+          this.vtableType,
+          [
+            // itable_length
+            this.builder.getInt32(itables.length),
+            // itable**
+            this.builder.CreateBitCast(
+              itableArray,
+              llvm.PointerType.get(llvm.PointerType.get(this.itableType, 0), 0)
+            ) as llvm.Constant,
+          ]
+        )
+      );
+    }
   }
 
   collectTopLevel() {
@@ -230,7 +279,7 @@ class Compiler {
       );
     })();
 
-    // vtable/itable
+    // object/vtable/itable
     (() => {
       // itable {i32 ifc_id, int32* offsets}
       const itableType = llvm.StructType.create(
@@ -259,6 +308,16 @@ class Compiler {
       );
       this.vtableType = vtableType;
       this.libStructs.set("Vtable", vtableType);
+
+      const baseObjType = llvm.StructType.create(
+        this.context,
+        [
+          llvm.PointerType.get(this.vtableType, 0),
+        ],
+        'Obj'
+      );
+      this.baseObjType = baseObjType;
+      this.libStructs.set("Obj", baseObjType);
 
       // Itable* get_itable_from_vtable(Vtable* vtable, i32 ifc_id)
       (() => {
@@ -542,15 +601,25 @@ class Compiler {
         ],
         key
       );
+      this.collectVtable.set(key, []);
 
       // Auto ifc.
       const autoIfcKey = `Ifc<${this.checker.typeToString(type)}>`;
-      const autoIfcShape = this.declIfcType(type, node);
-      // TODO: id
-      const autoItable = this.computeItable(1, key, shape, objType, autoIfcKey, autoIfcShape);
-      const itableCount = 1;
+      const autoIfcType = this.declIfcType(type, node);
+      const autoIfcId = autoIfcType.id;
+      const autoIfcShape = autoIfcType.shape;
+      const autoItable = this.computeItable(
+        autoIfcId,
+        key, shape, objType,
+        autoIfcKey, autoIfcShape
+      );
 
-      const itableArrayType = llvm.ArrayType.get(llvm.PointerType.get(this.itableType, 0), itableCount);
+      const itables = [autoItable];
+
+      const itableArrayType = llvm.ArrayType.get(
+        llvm.PointerType.get(this.itableType, 0),
+        itables.length
+      );
       const itableArray = new llvm.GlobalVariable(
         this.module,
         /* type */ itableArrayType,
@@ -558,7 +627,7 @@ class Compiler {
         /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
         /* initializer */ llvm.ConstantArray.get(
           itableArrayType,
-          [autoItable]
+          itables
         ),
         `itable_array<${key}>`
       );
@@ -572,7 +641,7 @@ class Compiler {
           this.vtableType,
           [
             // itable_length
-            this.builder.getInt32(itableCount),
+            this.builder.getInt32(itables.length),
             // itable**
             this.builder.CreateBitCast(
               itableArray,
@@ -645,23 +714,45 @@ class Compiler {
       name
     );
 
+    const itables = this.collectVtable.get(objName)!;
+    // const id = ++this.ifcIdCounter;
+    itables.push({id, itable});
+
     return itable;
   }
 
-  declIfcType(type: ts.Type, node: ts.Node): Shape {
+  declIfcForObjType(objType: ts.Type, ifcType: ts.Type, node: ts.Node) {
+    const llObjType = this.declObjType(objType, node);
+    const objName = typeName(llObjType);
+    const objShape = this.structShapes.get(llObjType)!;
+    const ifcName = `Ifc<${this.checker.typeToString(ifcType)}>`;
+    const llIfcType = this.declIfcType(ifcType, node);
+
+    const ifcId = llIfcType.id;
+
+    const itable = this.computeItable(
+      ifcId,
+      objName, objShape, llObjType,
+      ifcName, llIfcType.shape
+    );
+  }
+
+  declIfcType(type: ts.Type, node: ts.Node): IfcType {
     const key = `Ifc<${this.checker.typeToString(type)}>`;
-    let shape = this.ifcShapes.get(key);
-    if (!shape) {
-      shape = [];
+    let ifcType = this.ifcTypes.get(key);
+    if (!ifcType) {
+      const id = ++this.ifcIdCounter;
+      const shape: Shape = [];
       for (const prop of type.getProperties()) {
         const propName = prop.name;
         const propType = this.checker.getTypeOfSymbolAtLocation(prop, node);
         const propTypeStr = this.checker.typeToString(propType);
         shape.push({ name: propName, type: propTypeStr });
       }
-      this.ifcShapes.set(key, shape);
+      ifcType = {id, shape};
+      this.ifcTypes.set(key, ifcType);
     }
-    return shape;
+    return ifcType;
   }
 
   private getType(type: llvm.Type): llvm.Type {
@@ -705,7 +796,9 @@ class Compiler {
       this.builder.getInt32Ty();
     const llvmArgs = args.map(arg => {
       if (arg.shape) {
-        return arg.shape.objType.getPointerTo();
+        // TODO: can we at least comment on the actual type?
+        // return arg.shape.objType.getPointerTo();
+        return this.baseObjType.getPointerTo();
       }
       if (arg.type.endsWith('| null')) {
         return this.boxType.getPointerTo();
@@ -906,6 +999,17 @@ class Compiler {
             ptr
           );
           value = ptr;
+        } else if (typeName(funcRef.getArg(index).getType()) === 'Obj*') {
+          const sig = this.checker.getResolvedSignature(node)!;
+          const argType = this.checker.getTypeAtLocation(arg);
+          const sigArgType = this.checker.getTypeOfSymbolAtLocation(
+            sig.parameters[index], node);
+          this.declIfcForObjType(argType, sigArgType, node);
+          value = this.builder.CreateBitCast(
+            value,
+            this.baseObjType.getPointerTo(),
+            'cast_to_base_obj'
+          );
         }
         return value;
       });
@@ -1078,45 +1182,30 @@ class Compiler {
     } else if (ts.isPropertyAccessExpression(node)) {
 
       let ptr: llvm.Value;
-      let objType: llvm.Type;
+      // let objType: llvm.Type;
 
       const target = this.genExpr(node.expression);
-      if (target.getType().isStructTy()) {
-        objType = this.getType(target.getType());
-        ptr = this.builder.CreateAlloca(objType);
-        this.builder.CreateStore(target, ptr);
-      } else {
-        ptr = target;
-        objType = this.getType((ptr.getType() as llvm.PointerType).getPointerElementType());
-      }
+      ptr = target;
+      // objType = this.getType((ptr.getType() as llvm.PointerType).getPointerElementType());
 
-      const shape = this.structShapes.get(objType)!;
-      if (!shape) {
-        throw new Error(`shape not found for object type ${typeName(objType)}`);
-      }
+      // const shape = this.structShapes.get(objType)!;
+      // if (!shape) {
+      //   throw new Error(`shape not found for object type ${typeName(objType)}`);
+      // }
 
-      // QQQ: figure out the source of data.
       const symbol = this.checker.getSymbolAtLocation(node.name);
-      console.log('symbol: ', this.checker.symbolToString(symbol!));
-      const type = this.checker.getTypeOfSymbolAtLocation(symbol!, node.name);
-      console.log('type: ', this.checker.typeToString(type));
-      console.log('decl: ', symbol!.valueDeclaration?.parent.getText(this.sourceFile));
       const decl = symbol!.valueDeclaration!;
       const declType = this.checker.getTypeAtLocation(decl.parent);
-      console.log('decl.type: ', this.checker.typeToString(declType));
 
-      const ifcShape = this.declIfcType(declType, decl);
-      console.log('obj.shape:', shape);
-      console.log('ifc.shape:', ifcShape);
-
-      // QQQ: assign interface IDs.
-      const ifcId = 1;
+      const ifcType = this.declIfcType(declType, decl);
+      const ifcId = ifcType.id;
+      const ifcShape = ifcType.shape;
 
       // vtable/itable
       const vtable_ptr = this.builder.CreateLoad(
         llvm.PointerType.get(this.vtableType, 0),
         this.builder.CreateGEP(
-          objType,
+          this.baseObjType,
           ptr,
           [
             this.builder.getInt32(0),
