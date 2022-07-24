@@ -1255,7 +1255,7 @@ class Compiler {
         ),
         'offset'
       );
-      this.printf("offset = %d", [offset]);
+      // this.printf("offset = %d", [offset]);
 
       const offset_on_obj = this.builder.CreateAdd(
         this.builder.CreatePtrToInt(
