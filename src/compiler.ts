@@ -1205,7 +1205,6 @@ class Compiler {
         ),
         "vtable_ptr"
       );
-      // this.printf("vtable: %016", [vtable_ptr]);
 
       const itable_ptr = this.builder.CreateCall(
         this.lib.get("get_itable_from_vtable")!,
@@ -1215,7 +1214,6 @@ class Compiler {
         ],
         "itable_ptr"
       );
-      // this.printf("itable: %016", [vtable_ptr]);
 
       const propName = node.name.text;
       const ifcPropIndex = ifcShape.findIndex(p => p.name === propName);
@@ -1275,7 +1273,7 @@ class Compiler {
   }
 
   printf(fmt: string, args: llvm.Value[]) {
-    const fmtPtr = this.builder.CreateGlobalStringPtr(fmt);
+    const fmtPtr = this.builder.CreateGlobalStringPtr(fmt, "printf");
     const strPtr = this.builder.CreateAlloca(
       this.builder.getInt8Ty(),
       this.builder.getInt32(1000)
