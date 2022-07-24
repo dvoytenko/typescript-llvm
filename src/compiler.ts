@@ -1181,17 +1181,7 @@ class Compiler {
       return ptr;
     } else if (ts.isPropertyAccessExpression(node)) {
 
-      let ptr: llvm.Value;
-      // let objType: llvm.Type;
-
       const target = this.genExpr(node.expression);
-      ptr = target;
-      // objType = this.getType((ptr.getType() as llvm.PointerType).getPointerElementType());
-
-      // const shape = this.structShapes.get(objType)!;
-      // if (!shape) {
-      //   throw new Error(`shape not found for object type ${typeName(objType)}`);
-      // }
 
       const symbol = this.checker.getSymbolAtLocation(node.name);
       const decl = symbol!.valueDeclaration!;
@@ -1206,7 +1196,7 @@ class Compiler {
         llvm.PointerType.get(this.vtableType, 0),
         this.builder.CreateGEP(
           this.baseObjType,
-          ptr,
+          target,
           [
             this.builder.getInt32(0),
             // vtable index
@@ -1229,7 +1219,6 @@ class Compiler {
 
       const propName = node.name.text;
       const ifcPropIndex = ifcShape.findIndex(p => p.name === propName);
-      console.log('ifc.index ', propName, ifcPropIndex);
 
       const offsetArray = this.builder.CreateLoad(
         llvm.PointerType.get(this.builder.getInt32Ty(), 0),
@@ -1259,7 +1248,7 @@ class Compiler {
 
       const offset_on_obj = this.builder.CreateAdd(
         this.builder.CreatePtrToInt(
-          ptr,
+          target,
           this.builder.getInt64Ty()
         ),
         this.builder.CreateIntCast(offset, this.builder.getInt64Ty(), true),
