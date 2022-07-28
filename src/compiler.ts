@@ -86,7 +86,6 @@ class Compiler {
   compile(): string {
     this.collectTopLevel();
     this.genTopLevel();
-    // this.toLlvm();
     this.genComplete();
 
     console.log('');
