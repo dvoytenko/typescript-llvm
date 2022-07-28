@@ -3,14 +3,23 @@ import { Debug } from '../debug';
 import { Instr } from '../instr';
 import { Function } from '../instr/func';
 import { Types } from '../types';
-import { Pointer, PointerType, Value } from '../types/base';
+import { IntType, Pointer, PointerType, Value } from '../types/base';
 import { JsNullType } from '../types/jsnull';
 import { JsNumberType } from '../types/jsnumber';
 import { JsType, JsUnknownType, JsUnknownType2, JsValueType } from '../types/jsvalue';
 
-export interface Jslib {
+interface JslibValues {
   jsNull: Pointer<JsNullType>,
-  add: Function<PointerType<JsUnknownType2>, {a: PointerType<JsUnknownType2>, b: PointerType<JsUnknownType2>}>;
+}
+
+interface JslibFunctions {
+  addAny: Function<PointerType<JsUnknownType2>, {a: PointerType<JsUnknownType2>, b: PointerType<JsUnknownType2>}>;
+}
+
+export interface Jslib {
+  values: JslibValues,
+  funcs: JslibFunctions,
+  add: (a: Value<any>, b: Value<any>) => Value<any>;
 }
 
 export interface Gen {
@@ -21,14 +30,62 @@ export interface Gen {
 
 export function jslibFactory(gen: Gen): Jslib {
   const i32 = gen.types.i32;
-  const jsNull = gen.instr.globalConstVar("jsnull", gen.types.jsNull.createConst({jsType: i32.constValue(JsType.NULL)})).ptr;
+  const values: JslibValues = {
+    jsNull: gen.instr.globalConstVar("jsnull", gen.types.jsNull.createConst({jsType: i32.constValue(JsType.NULL)})).ptr,
+  };
+  const funcs: JslibFunctions = {
+    addAny: addAnyFunctionFactory(gen, values),
+  };
   return {
-    jsNull,
-    add: addFactory(gen, jsNull),
+    values,
+    funcs,
+    add: addFactory(gen, values, funcs),
   };
 }
 
-function addFactory({instr, types, debug}: Gen, jsNull: Pointer<JsNullType>) {
+function addFactory({instr, types, debug}: Gen, values: JslibValues, funcs: JslibFunctions) {
+  const {i32, jsNumber, jsValue} = types;
+  const jsNumberPtr = jsNumber.pointerOf();
+  const jsValuePtr = jsValue.pointerOf();
+  return (a: Value<any>, b: Value<any>): Value<any> => {
+    // TODO: the rules are incomplete and mostly wrong.
+
+    // Both values are numeric: the result is numeric.
+    if ((a.isA(i32) || a.isA(jsNumberPtr)) &&
+        (b.isA(i32) || b.isA(jsNumberPtr))) {
+      const numA = a.isA(i32) ? a : instr.loadUnboxed(a);
+      const numB = b.isA(i32) ? b : instr.loadUnboxed(b);
+      const numRes = instr.add(numA, numB);
+      if (a.isA(jsNumberPtr) || b.isA(jsNumberPtr)) {
+        const ptr = instr.malloc(jsNumber);
+        instr.storeBoxed(ptr, numRes);
+        return ptr;
+      }
+      return numRes;
+    }
+
+    // A mix of types.
+
+    // TODO: find home.
+    const toJsValue = (a: Value<any>): Pointer<JsUnknownType> => {
+      if (a.isA(jsValuePtr)) {
+        return instr.cast(a, jsValue);
+      }
+      if (a.isA(i32)) {
+        const ptr = instr.malloc(jsNumber);
+        instr.storeBoxed(ptr, a);
+        return instr.cast(ptr, jsValue);
+      }
+      return values.jsNull;
+    };
+
+    const jsvA = toJsValue(a);
+    const jsvB = toJsValue(b);
+    return instr.call(funcs.addAny, {a: jsvA, b: jsvB});
+  };
+}
+
+function addAnyFunctionFactory({instr, types, debug}: Gen, values: JslibValues) {
   const { i32, jsValue, jsNumber } = types;
   const jsValuePtr = jsValue.pointerOf();
   const jsNumberPtr = jsNumber.pointerOf();
@@ -46,18 +103,12 @@ function addFactory({instr, types, debug}: Gen, jsNull: Pointer<JsNullType>) {
   const uptrA = func.arg("a");
   const uptrB = func.arg("b");
 
-  // QQQ: remove builder
-  // uptrA.type.castSub
+  // TODO: remove builder
   const jsTypeA = uptrA.type.toType.loadJsType(instr.builder, uptrA);
   const jsTypeB = uptrA.type.toType.loadJsType(instr.builder, uptrB);
-  debug.printf("jsTypes = %d, %d", [jsTypeA, jsTypeB]);
 
   const isNumA = instr.icmpEq(jsTypeA, i32.constValue(JsType.NUMBER));
   const isNumB = instr.icmpEq(jsTypeB, i32.constValue(JsType.NUMBER));
-  debug.printf("isNum = %d, %d", [isNumA, isNumB]);
-  // const jsTypeTypeA = types.jsType(jsTypeA);
-  // instr.load(.gep("jsType"));
-  // return this.builder.CreateICmpEQ(left, right);
 
   const num1Block = instr.block(func, 'num1');
   const num2Block = instr.block(func, 'num2');
@@ -86,7 +137,7 @@ function addFactory({instr, types, debug}: Gen, jsNull: Pointer<JsNullType>) {
   instr.insertPoint(unkBlock);
 
   // TODO: string, other types, toPrimitive, undefined.
-  instr.ret(func, instr.cast(jsNull, jsValue));
+  instr.ret(func, instr.cast(values.jsNull, jsValue));
 
   return func;
 }

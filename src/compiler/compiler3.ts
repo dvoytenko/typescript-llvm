@@ -65,8 +65,8 @@ function doCompile({
     const ptrB = instr.cast(argB, jsValue);
     const ptrC = instr.cast(argC, jsValue);
   
-    const ptrSum1 = instr.call(jslib.add, {a: ptrA, b: ptrB});
-    const ptrSum2 = instr.call(jslib.add, {a: ptrSum1, b: ptrC});
+    const ptrSum1 = jslib.add(ptrA, ptrB);
+    const ptrSum2 = jslib.add(ptrSum1, ptrC);
     instr.ret(func, instr.cast(ptrSum2, jsNumber));
       
     return func;

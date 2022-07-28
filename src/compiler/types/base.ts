@@ -8,6 +8,10 @@ export class Type {
     public readonly context: llvm.LLVMContext,
     public readonly llType: llvm.Type,
   ) {}
+
+  isA<T extends Type>(other: T): this is T {
+    return this instanceof other.constructor;
+  }
   
   pointerOf(): PointerType<typeof this> {
     return new PointerType(this.context, this);
@@ -35,10 +39,6 @@ export class Type {
   castFrom(value: Pointer<Type>): Pointer<typeof this> {
     return new Pointer(this, value.llValue);
   }
-
-  // getPointerTo(): PointerType<typeof this> {
-  //   return null as unknown as PointerType<typeof this>;
-  // }
 }
 
 export interface BoxedType<BT extends Type> {
@@ -51,6 +51,10 @@ export class Value<T extends Type> {
     public type: T,
     public llValue: llvm.Value
   ) {}
+
+  isA<T extends Type>(other: T): this is Value<T> {
+    return this.type.isA(other);
+  }
 }
 
 export class PointerType<T extends Type> extends Type {
@@ -66,6 +70,13 @@ export class PointerType<T extends Type> extends Type {
       context,
       llvm.PointerType.get(toType.llType, 0)
     );
+  }
+
+  override isA<T extends Type>(other: T): this is T {
+    if (!super.isA(other)) {
+      return false;
+    }
+    return this.toType.isA((other as unknown as PointerType<any>).toType);
   }
 
   create(ptr: llvm.Value): Pointer<T> {

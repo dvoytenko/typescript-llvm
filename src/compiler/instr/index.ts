@@ -20,7 +20,7 @@ export interface Instr {
   loadUnboxed: <T extends Type & BoxedType<any>>(ptr: Pointer<T>) =>
       Value<T extends BoxedType<infer BT> ? BT : never>;
   // store: () => void;
-  storeBoxed: <T extends Type & BoxedType<any>>(ptr: Pointer<T>, value: Value<T extends BoxedType<infer BT> ? BT : never>) => void;
+  storeBoxed: <T extends Type & BoxedType<any>>(ptr: Pointer<T>, value: Value<T extends BoxedType<infer BT> ? BT : never>) => Pointer<T>;
   func: <Ret extends Type, Args extends FunctionArgs>(name: string, type: FunctionType<Ret, Args>) =>
       Function<Ret, Args>;
   block: (func: Function<any, any>, name: string) => llvm.BasicBlock;
@@ -149,6 +149,7 @@ function storeBoxedFactory(builder: llvm.IRBuilder) {
   return <T extends Type & BoxedType<any>>(ptr: Pointer<T>, value: Value<T extends BoxedType<infer BT> ? BT : never>) => {
     const toType = ptr.type.toType;
     toType.storeBoxed(builder, ptr, value);
+    return ptr;
   };
 }
 

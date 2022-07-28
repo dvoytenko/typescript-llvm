@@ -3,7 +3,7 @@ import * as path from 'path';
 import {promises as fsPromises} from 'fs';
 import { exec } from 'child_process';
 import { compile } from '../src/compiler';
-import { compile as compile2} from '../src/compiler/compiler';
+import { compile as compile3} from '../src/compiler/compiler3';
 
 console.log('Any specific test specified? ', process.argv[2]);
 
@@ -46,7 +46,7 @@ async function test(file: string): Promise<void> {
   const sourceFile = path.resolve(DATA_DIR, file);
 
   // const ll = compile(sourceFile);
-  const ll = compile2();
+  const ll = compile3();
   const llFile = path.resolve(workDir, file.replace('.ts', '.ll'));
   await fsPromises.writeFile(llFile, ll);
   const result = await execLl(llFile);

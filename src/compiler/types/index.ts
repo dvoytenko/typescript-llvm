@@ -8,6 +8,7 @@ import { JsUnknownType, JsValueType } from './jsvalue';
 import { StructFields, StructType } from './struct';
 
 export interface Types {
+  context: llvm.LLVMContext;
   i8: I8Type;
   i32: I32Type;
   i64: I64Type;
@@ -23,6 +24,7 @@ export interface Types {
 export function types(context: llvm.LLVMContext): Types {
   // TODO: singleton
   return {
+    context,
     i8: new I8Type(context),
     i32: new I32Type(context),
     i64: new I64Type(context),
