@@ -2,7 +2,7 @@ import llvm from 'llvm-bindings';
 import { Types } from '../types';
 import { BoxedType, I32Type, I64Type, I8Type, IntType, Pointer, PointerType, Type, Value } from '../types/base';
 import { BoolType } from '../types/bool';
-import { FunctionArgs, FunctionArgValues, FunctionType } from '../types/func';
+import { FunctionArgValues, FunctionType } from '../types/func';
 import { Function } from './func';
 import { GlobalVar } from './globalvar';
 
@@ -25,14 +25,14 @@ export interface Instr {
       Value<T extends BoxedType<infer BT> ? BT : never>;
   // store: () => void;
   storeBoxed: <T extends Type & BoxedType<any>>(ptr: Pointer<T>, value: Value<T extends BoxedType<infer BT> ? BT : never>) => Pointer<T>;
-  func: <Ret extends Type, Args extends FunctionArgs>(name: string, type: FunctionType<Ret, Args>) =>
+  func: <Ret extends Type, Args extends [...Type[]]>(name: string, type: FunctionType<Ret, Args>) =>
       Function<Ret, Args>;
   block: (func: Function<any, any>, name: string) => llvm.BasicBlock;
   insertPoint: (block: llvm.BasicBlock) => void;
   // TODO: only primitives (first class, non-aggr)
   // TODO: pass func to check return type
   ret: <T extends Type>(func: Function<T, any>, value: Value<T>) => void;
-  call: <Ret extends Type, Args extends FunctionArgs>(name: string, func: Function<Ret, Args>, args: FunctionArgValues<Args>) => Value<Ret>;
+  call: <Ret extends Type, Args extends [...Type[]]>(name: string, func: Function<Ret, Args>, args: FunctionArgValues<Args>) => Value<Ret>;
   // Branching.
   condBr: (cond: Value<BoolType>, trueBlock: llvm.BasicBlock, falseBlock: llvm.BasicBlock) => void;
   switchBr: <T extends IntType<any>>(cond: Value<T>, defBlock: llvm.BasicBlock, cases: SwitchCase<T>[]) => void;
@@ -55,7 +55,7 @@ export function instrFactory(context: llvm.LLVMContext, builder: llvm.IRBuilder,
     loadUnboxed: loadUnboxedFactory(builder),
     // store: storeFactory(builder),
     storeBoxed: storeBoxedFactory(builder),
-    func: <Ret extends Type, Args extends FunctionArgs>(name: string, type: FunctionType<Ret, Args>) => new Function(module, name, type),
+    func: <Ret extends Type, Args extends [...Type[]]>(name: string, type: FunctionType<Ret, Args>) => new Function(module, name, type),
     block: (func: Function<any, any>, name: string) => llvm.BasicBlock.Create(context, name, func.llFunc),
     insertPoint: (block: llvm.BasicBlock) => builder.SetInsertPoint(block),
     ret: retFactory(builder),
@@ -171,10 +171,10 @@ function retFactory(builder: llvm.IRBuilder) {
 }
 
 function callFactory(builder: llvm.IRBuilder) {
-  return <Ret extends Type, Args extends FunctionArgs>(name: string, func: Function<Ret, Args>, args: FunctionArgValues<Args>) => {
+  return <Ret extends Type, Args extends [...Type[]]>(name: string, func: Function<Ret, Args>, args: FunctionArgValues<Args>) => {
     const res = builder.CreateCall(
       func.llFunc,
-      func.type.createArgValues(args).map(v => v.llValue),
+      args.map(v => v.llValue),
       name);
     return new Value(func.type.retType, res);
   };

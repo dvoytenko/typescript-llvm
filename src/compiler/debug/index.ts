@@ -25,14 +25,12 @@ function debugValueFactory(instr: Instr, types: Types, snprintf: llvm.Function) 
   const debugJsvFunc = (() => {
     const functionType = types.func(
       types.i8.pointerOf(),
-      {
-        v: types.jsValue.pointerOf(),
-      }
+      [types.jsValue.pointerOf()]
     );
     const func = instr.func("debug_jsv", functionType);
     instr.insertPoint(instr.block(func, 'entry'));
 
-    const arg = func.arg("v");
+    const arg = func.args[0];
     const jsType = arg.type.toType.loadJsType(builder, arg);
     const strPtr = instr.malloc('s', types.i8, types.i64.constValue(1000));
 
@@ -112,7 +110,7 @@ function debugValueFactory(instr: Instr, types: Types, snprintf: llvm.Function) 
     if (value.type instanceof PointerType &&
         value.type.toType instanceof JsValueType) {
       const jsv = instr.cast('jsv', value, types.jsValue);
-      return instr.call('jsv_deb', debugJsvFunc, {v: jsv});
+      return instr.call('jsv_deb', debugJsvFunc, [jsv]);
     }
 
     const unk = builder.CreateGlobalStringPtr("(unknown)", "fmt.unk");

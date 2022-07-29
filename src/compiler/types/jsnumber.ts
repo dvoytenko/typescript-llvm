@@ -14,6 +14,13 @@ export class JsNumberType extends JsValueType<JsType.NUMBER, {
     this.unboxedType = new I32Type(context);
   }
 
+  constValue(v: number): Value<typeof this> {
+    return this.createConst({
+      jsType: this.fields.jsType.constValue(this.jsType),
+      value: this.fields.value.constValue(v),
+    });
+  }
+
   // TODO: move to JsPrimitiveType?
   unboxLoad(builder: llvm.IRBuilder, ptr: Pointer<typeof this>): Value<I32Type> {
     return this.load(builder, ptr, "value");
@@ -28,7 +35,8 @@ export class JsNumberType extends JsValueType<JsType.NUMBER, {
   storeBoxed(builder: llvm.IRBuilder, ptr: Pointer<typeof this>, value: Value<I32Type>) {
     const i32 = new I32Type(this.context);
     this.storeStruct(builder, ptr, {
-      jsType: new Value(i32, llvm.ConstantInt.get(i32.llType, this.jsType)),
+      // jsType: new Value(i32, llvm.ConstantInt.get(i32.llType, this.jsType)),
+      jsType: this.fields.jsType.constValue(this.jsType),
       value,
     });
   }

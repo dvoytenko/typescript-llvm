@@ -8,4 +8,8 @@ export class BoolType extends Type {
       llvm.IntegerType.get(context, 1)
     );
   }
+
+  constValue(v: boolean): Value<typeof this> {
+    return new Value(this, llvm.ConstantInt.get(this.llType, v ? 1 : 0));
+  }
 }

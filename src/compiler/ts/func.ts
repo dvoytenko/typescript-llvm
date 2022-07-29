@@ -35,7 +35,7 @@ export function declFunction(node: ts.FunctionDeclaration, checker: ts.TypeCheck
 }
 
 function declMainFunction(node: ts.FunctionDeclaration, types: Types, instr: Instr) {
-  const funcType = types.func(types.i32, {});
+  const funcType = types.func(types.i32, []);
   const func = instr.func('main', funcType);
   return func;
 }

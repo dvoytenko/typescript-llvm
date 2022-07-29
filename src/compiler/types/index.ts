@@ -1,7 +1,7 @@
 import llvm from 'llvm-bindings';
 import { I32Type, I64Type, I8Type, PointerType, Type, Value } from './base';
 import { BoolType } from './bool';
-import { FunctionArgs, FunctionType } from './func';
+import { FunctionType } from './func';
 import { JsNullType } from './jsnull';
 import { JsNumberType } from './jsnumber';
 import { JsUnknownType, JsValueType } from './jsvalue';
@@ -15,7 +15,7 @@ export interface Types {
   bool: BoolType;
   pointer: <T extends Type>(type: T) => PointerType<T>,
   struct: <Fields extends StructFields>(name: string, fields: Fields) => StructType<Fields>;
-  func: <Ret extends Type, Args extends FunctionArgs>(retType: Ret, args: Args) => FunctionType<Ret, Args>;
+  func: <Ret extends Type, Args extends [...Type[]]>(retType: Ret, args: [...Args]) => FunctionType<Ret, Args>;
   jsValue: JsUnknownType;
   jsNull: JsNullType;
   jsNumber: JsNumberType;
@@ -31,7 +31,7 @@ export function types(context: llvm.LLVMContext): Types {
     bool: new BoolType(context),
     pointer: <T extends Type>(type: T) => PointerType.of(type),
     struct: <Fields extends StructFields>(name: string, fields: Fields) => new StructType(context, name, fields),
-    func: <Ret extends Type, Args extends FunctionArgs>(retType: Ret, args: Args) => new FunctionType(context, retType, args),
+    func: <Ret extends Type, Args extends [...Type[]]>(retType: Ret, args: Args) => new FunctionType(context, retType, args),
     jsValue: new JsUnknownType(context),
     jsNull: new JsNullType(context),
     jsNumber: new JsNumberType(context),

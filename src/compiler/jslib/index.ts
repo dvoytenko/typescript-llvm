@@ -12,8 +12,10 @@ interface JslibValues {
   jsNull: Pointer<JsNullType>,
 }
 
+type AddAnyArgs = [a: PointerType<JsUnknownType2>, b: PointerType<JsUnknownType2>];
+
 interface JslibFunctions {
-  addAny: Function<PointerType<JsUnknownType2>, {a: PointerType<JsUnknownType2>, b: PointerType<JsUnknownType2>}>;
+  addAny: Function<PointerType<JsUnknownType2>, AddAnyArgs>;
 }
 
 interface AddInstr {
@@ -87,7 +89,7 @@ function addFactory({instr, types, debug}: Gen, values: JslibValues, funcs: Jsli
 
     const jsvA = toJsValue(a);
     const jsvB = toJsValue(b);
-    return instr.call(name, funcs.addAny, {a: jsvA, b: jsvB});
+    return instr.call(name, funcs.addAny, [jsvA, jsvB]);
   };
 }
 
@@ -95,19 +97,19 @@ function addAnyFunctionFactory({instr, types, debug}: Gen, values: JslibValues) 
   const { i32, jsValue, jsNumber } = types;
   const jsValuePtr = jsValue.pointerOf();
   const jsNumberPtr = jsNumber.pointerOf();
-  const funcType = types.func(
+  const funcType = types.func<PointerType<JsUnknownType2>, AddAnyArgs>(
     jsValuePtr as PointerType<JsUnknownType2>,
-    {
-      a: jsValuePtr as PointerType<JsUnknownType2>,
-      b: jsValuePtr as PointerType<JsUnknownType2>,
-    }
+    [
+      jsValuePtr as PointerType<JsUnknownType2>,
+      jsValuePtr as PointerType<JsUnknownType2>,
+    ]
   );
   const func = instr.func("jslib_add", funcType);
 
   instr.insertPoint(instr.block(func, 'entry'));
 
-  const uptrA = func.arg("a");
-  const uptrB = func.arg("b");
+  const uptrA = func.args[0];
+  const uptrB = func.args[1];
 
   // TODO: remove builder
   const jsTypeA = uptrA.type.toType.loadJsType(instr.builder, uptrA);

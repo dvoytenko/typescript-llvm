@@ -1,12 +1,8 @@
 import llvm from 'llvm-bindings';
 import {Pointer, Type, Value} from './base';
 
-export interface FunctionArgs {
-  [name: string]: Type;
-}
-
-export type FunctionArgValues<T extends FunctionArgs> = {
-  [name in keyof T]: Value<T[name]>;
+export type FunctionArgValues<Args extends Type[]> = {
+  [index in keyof Args]: Value<Args[index]>;
 }
 
 /*QQQQ
@@ -22,7 +18,7 @@ fun5.invoke([{type: strType}, {type: numType}, {type: numType}]);
 const fun6 = funType2([strType, numType, numType] as const);
 
 
-function funType3<Args extends [...any[]]>(args: [...Args]): FunType2<Args> {
+function funType3<>(args: [...Args]): FunType2<Args> {
   return {
     args,
     invoke() {},
@@ -30,9 +26,7 @@ function funType3<Args extends [...any[]]>(args: [...Args]): FunType2<Args> {
 }
 */
 
-export class FunctionType<Ret extends Type, Args extends FunctionArgs> extends Type {
-  private argNames: (keyof Args)[];
-
+export class FunctionType<Ret extends Type, Args extends [...Type[]]> extends Type {
   constructor(
     context: llvm.LLVMContext,
     public readonly retType: Ret,
@@ -42,14 +36,9 @@ export class FunctionType<Ret extends Type, Args extends FunctionArgs> extends T
       context,
       llvm.FunctionType.get(
         retType.llType,
-        Object.entries(args).map(([, type]) => type.llType),
+        args.map(arg => arg.llType),
         false
       )
     );
-    this.argNames = Object.entries(args).map(([name]) => name);
-  }
-
-  createArgValues(values: FunctionArgValues<Args>): Value<any>[] {
-    return this.argNames.map(name => values[name]);
   }
 }

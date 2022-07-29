@@ -1,6 +1,5 @@
 import llvm from 'llvm-bindings';
 import { Pointer, Type, Value } from '../types/base';
-import { FunctionArgs, FunctionArgValues, FunctionType } from '../types/func';
 
 export class GlobalVar<T extends Type> {
   public readonly type: T;

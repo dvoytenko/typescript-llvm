@@ -30,7 +30,7 @@ export abstract class JsValueType<JST extends JsType, Fields extends StructField
     extends StructType<JsTypeFields & Fields> {
   constructor(
     context: llvm.LLVMContext,
-    public jsType: JST,
+    public readonly jsType: JST,
     fields: Fields) {
     super(
       context,

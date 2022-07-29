@@ -46,20 +46,20 @@ function doCompile({
   const addFunc = (() => {
     const funcType = types.func(
       jsNumberPtr,
-      {
-        a: jsNumberPtr,
-        b: jsNumberPtr,
-        c: jsNumberPtr,
-      }
+      [
+        jsNumberPtr,
+        jsNumberPtr,
+        jsNumberPtr,
+      ]
     );
 
     const func = instr.func("add3", funcType);
   
     instr.insertPoint(instr.block(func, 'entry'));
 
-    const argA = func.arg("a");
-    const argB = func.arg("b");
-    const argC = func.arg("c");
+    const argA = func.args[0];
+    const argB = func.args[1];
+    const argC = func.args[2];
 
     const ptrA = instr.cast('ptr_a', argA, jsValue);
     const ptrB = instr.cast('ptr_b', argB, jsValue);
@@ -72,7 +72,7 @@ function doCompile({
     return func;
   })();
 
-  const mainFuncType = types.func(i32, {});
+  const mainFuncType = types.func(i32, []);
   const mainFunc = instr.func("main", mainFuncType);
 
   instr.insertPoint(instr.block(mainFunc, 'entry'));
@@ -81,7 +81,7 @@ function doCompile({
   const varB = instr.globalConstVar("b", jsNumber.box(4));
   const varC = instr.globalConstVar("c", jsNumber.box(5));
 
-  const res = instr.call('add_res', addFunc, {a: varA.ptr, b: varB.ptr, c: varC.ptr});
+  const res = instr.call('add_res', addFunc, [varA.ptr, varB.ptr, varC.ptr]);
 
   debug.printf("hello world! %s", [debug.debugValue(res)]);
   instr.ret(mainFunc, i32.constValue(0));

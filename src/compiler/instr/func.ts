@@ -1,10 +1,10 @@
 import llvm from 'llvm-bindings';
 import { Type, Value } from '../types/base';
-import { FunctionArgs, FunctionArgValues, FunctionType } from '../types/func';
+import { FunctionArgValues, FunctionType } from '../types/func';
 
-export class Function<Ret extends Type, Args extends FunctionArgs> {
+export class Function<Ret extends Type, Args extends [...Type[]]> {
   public readonly llFunc: llvm.Function;
-  private readonly args: FunctionArgValues<Args>;
+  public readonly args: FunctionArgValues<Args>;
 
   constructor(
     module: llvm.Module,
@@ -17,13 +17,8 @@ export class Function<Ret extends Type, Args extends FunctionArgs> {
       name,
       module
     );
-    this.args = Object.fromEntries(Object.entries(type.args)
-      .map(([name, type], index) => {
-        return [name, new Value(type, this.llFunc.getArg(index))];
-      })) as FunctionArgValues<Args>;
-  }
-
-  arg<A extends keyof Args>(name: A): Value<Args[A]> {
-    return this.args[name];
+    this.args = type.args.map((type, index) => {
+      return new Value(type, this.llFunc.getArg(index));
+    }) as FunctionArgValues<Args>;
   }
 }

@@ -1,5 +1,6 @@
 import llvm from 'llvm-bindings';
 import ts from "typescript";
+import { CompilerContext } from './context';
 import { Debug, debugFactory } from './debug';
 import { Instr, instrFactory } from './instr';
 import { Function } from './instr/func';
@@ -20,7 +21,7 @@ export function compile(file: string): string {
   return ir;
 }
 
-class Compiler {
+class Compiler implements CompilerContext {
   private readonly program: ts.Program;
   private readonly checker: ts.TypeChecker;
   private readonly llContext: llvm.LLVMContext;
@@ -120,7 +121,7 @@ class Compiler {
     for (let i = 0; i < node.parameters.length; i++) {
       const argNode = node.parameters[i];
       const argName = argNode.name.getText();
-      const argValue = func.arg(argName);
+      const argValue = func.args[i];
       this.refs.set(argNode, argValue);
     }
 
@@ -201,17 +202,15 @@ class Compiler {
 
       if (funcRef instanceof TsFunction) {
         const {func} = funcRef;
-        const args = Object.fromEntries(
-          Object.entries(func.type.args).map(([name, type], index) => {
-            const arg = node.arguments[index];
-            const value = arg ? this.genExpr(arg) : null;
-            if (!(value instanceof Value<any>)) {
-              throw new Error('cannot use the arg');
-            }
-            // const typedValue = instr.cast();
-            return [name, value];
-          })
-        );
+        const args = func.type.args.map((type, index) => {
+          const arg = node.arguments[index];
+          const value = arg ? this.genExpr(arg) : null;
+          if (!(value instanceof Value<any>)) {
+            throw new Error('cannot use the arg');
+          }
+          // const typedValue = instr.cast();
+          return value;
+        });
         return instr.call(`${func.name}_res`, func, args);
       }
 
