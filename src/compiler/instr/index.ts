@@ -3,6 +3,7 @@ import { Types } from '../types';
 import { BoxedType, I32Type, I64Type, I8Type, IntType, Pointer, PointerType, Type, Value } from '../types/base';
 import { BoolType } from '../types/bool';
 import { FunctionArgValues, FunctionType } from '../types/func';
+import { JsValueType } from '../types/jsvalue';
 import { Function } from './func';
 import { GlobalVar } from './globalvar';
 
@@ -16,7 +17,8 @@ export interface Instr {
   globalStringPtr: (name: string, value: string) => Pointer<I8Type>;
   alloca: <T extends Type>(name: string, type: T, arraySize?: Value<I32Type> | null) => Pointer<T>;
   malloc: <T extends Type>(name: string, type: T, arraySize?: Value<I64Type> | null) => Pointer<T>;
-  cast: <T extends Type>(name: string, ptr: Pointer<Type>, toType: T) => Pointer<T>;
+  cast: <T extends Type>(name: string, ptr: Pointer<any>, toType: T) => Pointer<T>;
+  strictConvert: <T extends Type>(value: Value<any>, toType: T) => Value<T>;
   add: <T extends IntType<any>>(name: string, a: Value<T>, b: Value<T>) => Value<T>;
   icmpEq: <T extends IntType<any>>(name: string, a: Value<T>, b: Value<T>) => Value<BoolType>;
   // TODO: only primitives (first class, non-aggr)
@@ -34,6 +36,7 @@ export interface Instr {
   ret: <T extends Type>(func: Function<T, any>, value: Value<T>) => void;
   call: <Ret extends Type, Args extends [...Type[]]>(name: string, func: Function<Ret, Args>, args: FunctionArgValues<Args>) => Value<Ret>;
   // Branching.
+  br: (dest: llvm.BasicBlock) => void;
   condBr: (cond: Value<BoolType>, trueBlock: llvm.BasicBlock, falseBlock: llvm.BasicBlock) => void;
   switchBr: <T extends IntType<any>>(cond: Value<T>, defBlock: llvm.BasicBlock, cases: SwitchCase<T>[]) => void;
 }
@@ -41,14 +44,16 @@ export interface Instr {
 export function instrFactory(context: llvm.LLVMContext, builder: llvm.IRBuilder, module: llvm.Module, types: Types): Instr {
   const values: InstrValues = {
   };
+  const malloc = mallocFactory(builder, module);
   return {
     builder,
     values,
     globalConstVar: (name, value) => new GlobalVar(module, name, value),
     globalStringPtr: (name, value) => new Pointer(types.i8, builder.CreateGlobalStringPtr(value, name)),
     alloca: allocaFactory(builder),
-    malloc: mallocFactory(builder, module),
+    malloc,
     cast: castFactory(builder),
+    strictConvert: strictConvertFactory(builder, types, malloc),
     add: addFactory(builder),
     icmpEq: icmpEqFactory(types, builder),
     load: loadFactory(builder),
@@ -60,6 +65,7 @@ export function instrFactory(context: llvm.LLVMContext, builder: llvm.IRBuilder,
     insertPoint: (block: llvm.BasicBlock) => builder.SetInsertPoint(block),
     ret: retFactory(builder),
     call: callFactory(builder),
+    br: brFactory(builder),
     condBr: condBrFactory(builder),
     switchBr: switchBrFactory(builder),
   };
@@ -101,6 +107,8 @@ function mallocFactory(builder: llvm.IRBuilder, module: llvm.Module) {
 }
 
 function castFactory(builder: llvm.IRBuilder) {
+  // TODO: confusing that we do automatic PointerType.of() here. Should just
+  // be specified.
   return <T extends Type>(name: string, ptr: Pointer<Type>, toType: T) => {
     const castPtr = builder.CreateBitCast(
       ptr.llValue,
@@ -108,6 +116,48 @@ function castFactory(builder: llvm.IRBuilder) {
       name
     );
     return new Pointer(toType, castPtr);
+  };
+}
+
+// TODO: seems more advanced than simple LL instructions. Move to jslib?
+function strictConvertFactory(builder: llvm.IRBuilder, types: Types, malloc: Instr["malloc"]) {
+  const cast = castFactory(builder);
+  const loadUnboxed = loadUnboxedFactory(builder);
+  const storeBoxed = storeBoxedFactory(builder);
+  return <T extends Type>(value: Value<any>, toType: T): Value<T> => {
+    // Already the right type.
+    if (value.isA(toType)) {
+      return value;
+    }
+
+    // Widen to parent type.
+    // TODO: more canonical parent/child inheritence.
+    if (toType.isA(types.jsValue.pointerOf()) &&
+        value.type.isPointerTo(JsValueType)) {
+      return cast('cast', value, types.jsValue) as unknown as Value<T>;
+    }
+
+    // Unbox.
+    if (!toType.isPointer() &&
+        value.type.isPointerTo(JsValueType) &&
+        value.type.toType.isBoxed() &&
+        value.type.toType.unboxedType.isA(toType)) {
+      return loadUnboxed(value);
+    }
+
+    // Narrow and box.
+    // TODO: make it more generic?
+    // QQQQ:   i32type to ptr_jsv
+    if (toType.isA(types.jsValue.pointerOf()) &&
+        value.isA(types.i32)) {
+      const jsn = malloc('jsn', types.jsNumber);
+      storeBoxed(jsn, value);
+      return cast('jsv', jsn, types.jsValue) as unknown as Value<T>;
+    }
+
+    // TODO: a more canonical BoxedType/etc concepts.
+
+    throw new Error(`cannot do strict convert from ${value.type.typeName} to ${toType.typeName}`);
   };
 }
 
@@ -175,8 +225,15 @@ function callFactory(builder: llvm.IRBuilder) {
     const res = builder.CreateCall(
       func.llFunc,
       args.map(v => v.llValue),
-      name);
+      name
+    );
     return new Value(func.type.retType, res);
+  };
+}
+
+function brFactory(builder: llvm.IRBuilder) {
+  return (dest: llvm.BasicBlock) => {
+    builder.CreateBr(dest);
   };
 }
 

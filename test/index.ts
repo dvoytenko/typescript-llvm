@@ -33,7 +33,7 @@ async function run(dir: string) {
 
 async function test(file: string): Promise<void> {
   console.log('TS FILE: ', file);
-  if (!file.includes('one')) {
+  if (!file.includes('two')) {
     return;
   }
 
@@ -52,7 +52,7 @@ async function test(file: string): Promise<void> {
   const llFile = path.resolve(workDir, file.replace('.ts', '.ll'));
   await fsPromises.writeFile(llFile, ll);
   const result = await execLl(llFile);
-  console.log(`${'\x1b[34m'}RESULT: `, result, '\x1b[0m');
+  console.log(`${'\x1b[34m'}RESULT:\n${result}`, '\x1b[0m');
 
   /* QQQQ
   const llFile = path.resolve(DATA_DIR, file.replace('.ts', '.ll'));

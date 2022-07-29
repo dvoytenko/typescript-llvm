@@ -16,6 +16,14 @@ export class Type {
   isBoxed(): this is BoxedType<any> {
     return typeof (this as unknown as BoxedType<any>).loadUnboxed === 'function';
   }
+
+  isPointer(): this is PointerType<any> {
+    return false;
+  }
+
+  isPointerTo<T extends Type>(type: T | (new() => T)): this is PointerType<T> {
+    return false;
+  }
   
   pointerOf(): PointerType<typeof this> {
     return new PointerType(this.context, this);
@@ -26,7 +34,7 @@ export class Type {
   }
 
   get typeName(): string {
-    return this.constructor.name.toLowerCase();
+    return this.constructor.name.toLowerCase().replace('type', '');
   }
 
   sizeof(builder: llvm.IRBuilder): Value<I64Type> {
@@ -68,6 +76,14 @@ export class Value<T extends Type> {
   isA<T extends Type>(other: T): this is Value<T> {
     return this.type.isA(other);
   }
+
+  isPointer(): this is Pointer<any> {
+    return this.type.isPointer();
+  }  
+
+  isPointerTo<T extends Type>(type: T | (new() => T)): this is Pointer<T> {
+    return this.type.isPointerTo(type);
+  }
 }
 
 export class PointerType<T extends Type> extends Type {
@@ -94,6 +110,17 @@ export class PointerType<T extends Type> extends Type {
       return false;
     }
     return this.toType.isA((other as unknown as PointerType<any>).toType);
+  }
+
+  override isPointer(): boolean {
+    return true;
+  }
+
+  override isPointerTo<T extends Type>(type: T | (new() => T)): this is PointerType<T> {
+    if (typeof type === 'function') {
+      return this.toType instanceof type;
+    }
+    return this.toType.isA(type);
   }
 
   create(ptr: llvm.Value): Pointer<T> {

@@ -41,6 +41,7 @@ class Compiler {
   private readonly refs: Map<ts.Node, Value<any>> = new Map();
   private sourceFile: ts.SourceFile;
   private currentFunc: TsFunction|null = null;
+  private blockTerminated: boolean[] = [];
 
   constructor(files: string[]) {
     this.program = ts.createProgram(files, {
@@ -78,6 +79,20 @@ class Compiler {
       declFunction: this.declFunction.bind(this),
       genStatement: this.genStatement.bind(this),
       genExpr: this.genExpr.bind(this),
+      genInBlock: (block, gen, finish) => {
+        this.blockTerminated.push(false);
+        this.instr.insertPoint(block);
+        gen();
+        const terminated = this.blockTerminated.pop();
+        if (!terminated) {
+          finish();
+        }
+      },
+      terminateBlock: () => {
+        if (this.blockTerminated.length > 0) {
+          this.blockTerminated[this.blockTerminated.length - 1] = true;
+        }
+      },
     };
 
     this.statements = statements(this.compilerContext);
@@ -136,7 +151,7 @@ class Compiler {
 
     console.log('QQQ: declFunction: ', node.name?.text);
 
-    const func = declFunction(node, this.checker, this.types, this.instr);
+    const func = declFunction(node, this.compilerContext);
 
     const funcObj = new TsFunction(node, func);
     this.functions.set(node, funcObj);
@@ -177,7 +192,7 @@ class Compiler {
     }
   }
 
-  genStatement(node: ts.Statement) {
+  private genStatement(node: ts.Statement) {
     const handler = this.statements[node.kind];
     if (!handler) {
       throw new Error(`unknown statement: ${ts.SyntaxKind[node.kind]}`);
@@ -185,7 +200,7 @@ class Compiler {
     handler(node);
   }
 
-  genExpr(node: ts.Expression): Value<any>|TsFunction|null {
+  private genExpr(node: ts.Expression): Value<any>|TsFunction|null {
     const handler = this.expressions[node.kind];
     if (!handler) {
       throw new Error(`unknown expression: ${ts.SyntaxKind[node.kind]}`);

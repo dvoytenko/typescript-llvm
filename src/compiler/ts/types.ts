@@ -1,18 +1,101 @@
 import llvm from 'llvm-bindings';
 import ts from "typescript";
+import { CompilerContext } from '../context';
 import { Types } from '../types';
 import { PointerType, Type } from '../types/base';
 import { JsValueType } from '../types/jsvalue';
 
-export function tsToLlTypeUnboxed(tsType: ts.Type, types: Types, checker: ts.TypeChecker): Type {
-  const type = tsToLlType(tsType, types, checker);
+export function tsToGTypeUnboxed(tsType: ts.Type, context: CompilerContext): Type {
+  const type = tsToGType(tsType, context);
   if (type.toType.isBoxed() && !tsType.isUnionOrIntersection()) {
     return type.toType.unboxedType;
   }
   return type;
 }
 
-export function tsToLlType(tsType: ts.Type, types: Types, checker: ts.TypeChecker): PointerType<JsValueType<any, any>> {
+export function tsToGType(tsType: ts.Type, context: CompilerContext): PointerType<JsValueType<any, any>> {
+  const {types} = context;
+  logType(tsType, context);
+
+  if (tsType.pattern) {
+    throw new Error(`ts.Type.pattern not supported: ${tsType.pattern}`);
+  }
+
+  if (tsType.isIntersection()) {
+    throw new Error('Not supported isIntersection');
+  }
+  // if (tsType.isUnionOrIntersection()) {
+  //   throw new Error('Not supported isUnionOrIntersection');
+  // }
+  if (tsType.isLiteral()) {
+    throw new Error('Not supported isLiteral');
+  }
+  if (tsType.isStringLiteral()) {
+    throw new Error('Not supported isStringLiteral');
+  }
+  if (tsType.isNumberLiteral()) {
+    throw new Error('Not supported isNumberLiteral');
+  }
+  if (tsType.isIndexType()) {
+    throw new Error('Not supported isIndexType');
+  }
+  if (tsType.isClass()) {
+    throw new Error('Not supported isClass');
+  }
+  if (tsType.isClassOrInterface()) {
+    throw new Error('Not supported isClassOrInterface');
+  }
+  // if (tsType.isTypeParameter()) {
+  //   throw new Error('Not supported isTypeParameter');
+  // }
+
+  if (tsType.isUnion()) {
+    return types.jsValue.pointerOf();
+  }
+
+  let flags: number = tsType.flags;
+
+  if (flags & ts.TypeFlags.Number) {
+    flags &= ~ts.TypeFlags.Number;
+    if (flags !== 0) {
+      throw new Error(`not all flags picked up: ${flags} ${flags.toString(2)}`);
+    }
+    return types.jsNumber.pointerOf();
+  }
+
+  /* type: number
+     flags: 8
+
+        Number (2 ^ 3)
+        PossiblyFalsy
+        Intrinsic
+        Primitive
+        NumberLike
+        DefinitelyNonNullable
+        DisjointDomains
+        Singleton
+        Narrowable
+        IncludesMask     
+   */
+
+  /* type: number|null
+     flags: 1048576
+        Union (2 ^ 20)
+        UnionOrIntersection
+        StructuredType
+        StructuredOrInstantiable
+        ObjectFlagsType
+        Narrowable
+        IncludesMask     
+
+     objectFlags: 32768
+        PrimitiveUnion (2 ^ 15)
+  */
+
+  return types.jsValue.pointerOf();
+}
+
+function logType(tsType: ts.Type, {checker}: CompilerContext) {
   // console.log('QQQQ: TYPE: ', tsType);
   console.log('QQQQ: TYPE FLAGS: ', {
     flags: tsType.getFlags(),
@@ -59,80 +142,4 @@ export function tsToLlType(tsType: ts.Type, types: Types, checker: ts.TypeChecke
     // false
     isIndexType: tsType.isIndexType(),
   });
-
-  if (tsType.pattern) {
-    throw new Error(`ts.Type.pattern not supported: ${tsType.pattern}`);
-  }
-
-  if (tsType.isUnion()) {
-    throw new Error('Not supported isUnion');
-  }
-  if (tsType.isIntersection()) {
-    throw new Error('Not supported isIntersection');
-  }
-  if (tsType.isUnionOrIntersection()) {
-    throw new Error('Not supported isUnionOrIntersection');
-  }
-  if (tsType.isLiteral()) {
-    throw new Error('Not supported isLiteral');
-  }
-  if (tsType.isStringLiteral()) {
-    throw new Error('Not supported isStringLiteral');
-  }
-  if (tsType.isNumberLiteral()) {
-    throw new Error('Not supported isNumberLiteral');
-  }
-  if (tsType.isIndexType()) {
-    throw new Error('Not supported isIndexType');
-  }
-  if (tsType.isClass()) {
-    throw new Error('Not supported isClass');
-  }
-  if (tsType.isClassOrInterface()) {
-    throw new Error('Not supported isClassOrInterface');
-  }
-  // if (tsType.isTypeParameter()) {
-  //   throw new Error('Not supported isTypeParameter');
-  // }
-
-  let flags: number = tsType.flags;
-
-  if (flags & ts.TypeFlags.Number) {
-    flags &= ~ts.TypeFlags.Number;
-    if (flags !== 0) {
-      throw new Error(`not all flags picked up: ${flags} ${flags.toString(2)}`);
-    }
-    return types.jsNumber.pointerOf();
-  }
-
-  /* type: number
-     flags: 8
-
-        Number (2 ^ 3)
-        PossiblyFalsy
-        Intrinsic
-        Primitive
-        NumberLike
-        DefinitelyNonNullable
-        DisjointDomains
-        Singleton
-        Narrowable
-        IncludesMask     
-   */
-
-  /* type: number|null
-     flags: 1048576
-        Union (2 ^ 20)
-        UnionOrIntersection
-        StructuredType
-        StructuredOrInstantiable
-        ObjectFlagsType
-        Narrowable
-        IncludesMask     
-
-     objectFlags: 32768
-        PrimitiveUnion (2 ^ 15)
-  */
-
-  return types.jsValue.pointerOf();
 }

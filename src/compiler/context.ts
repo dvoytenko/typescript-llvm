@@ -1,3 +1,4 @@
+import llvm from "llvm-bindings";
 import ts from "typescript";
 import { Debug } from "./debug";
 import { Instr } from "./instr";
@@ -21,4 +22,7 @@ export interface CompilerContext {
   declFunction(node: ts.FunctionDeclaration): TsFunction;
   genStatement(node: ts.Statement);
   genExpr(node: ts.Expression): Value<any>|TsFunction|null;
+
+  genInBlock(block: llvm.BasicBlock, gen: () => void, finish: () => void);
+  terminateBlock();
 }

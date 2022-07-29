@@ -1,7 +1,8 @@
 import ts from "typescript";
 import { CompilerContext } from "../../context";
-import { Value } from "../../types/base";
+import { Type, Value } from "../../types/base";
 import { TsFunction } from "../func";
+import { tsToGTypeUnboxed } from "../types";
 
 export type ExprHandler<E extends ts.Expression> = (st: E) => Value<any>|TsFunction|null;
 
@@ -17,6 +18,7 @@ export function expressions(context: CompilerContext): ExprHandlers {
   const factories: ExprFactories = {
     [ts.SyntaxKind.CallExpression]: callFactory,
     [ts.SyntaxKind.Identifier]: identifierFactory,
+    [ts.SyntaxKind.NullKeyword]: nullFactory,
     [ts.SyntaxKind.NumericLiteral]: numericLiteralFactory,
     [ts.SyntaxKind.BinaryExpression]: binaryExpressionFactory,
   };
@@ -54,8 +56,7 @@ function callFactory(context: CompilerContext) {
         if (!(value instanceof Value<any>)) {
           throw new Error('cannot use the arg');
         }
-        // const typedValue = instr.cast();
-        return value;
+        return instr.strictConvert(value, type);
       });
       return instr.call(`${func.name}_res`, func, args);
     }
@@ -112,13 +113,18 @@ function identifierFactory({checker, declFunction, ref}: CompilerContext) {
   };
 }
 
-function numericLiteralFactory({types, instr}: CompilerContext) {
+function nullFactory({jslib}: CompilerContext) {
+  return () => {
+    return jslib.values.jsNull;
+  };
+}
+
+function numericLiteralFactory(context: CompilerContext) {
+  const {types, instr, checker} = context;
   return (node: ts.NumericLiteral) => {
     // TODO: type (llvm.ConstantFP.get(builder.getFloatTy(), 1.4))
     const num = types.i32.constValue(parseInt(node.text, 10));
-    // TODO: better name: take from VarDecl, or Param name, etc.
-    const jsnumPtr = instr.malloc('num', types.jsNumber);
-    return instr.storeBoxed(jsnumPtr, num);
+    return num;
   }
 }
 
@@ -136,8 +142,10 @@ function binaryExpressionFactory({jslib, genExpr}: CompilerContext) {
     if (op.kind === ts.SyntaxKind.PlusToken) {
       // TODO: better name: var name, etc?
       return jslib.add('add_res', left, right);
-    } else {
-      throw new Error(`unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`);
     }
+    if (op.kind === ts.SyntaxKind.EqualsEqualsEqualsToken) {
+      return jslib.strictEq('stricteq', left, right);
+    }
+    throw new Error(`unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`);
   };
 }
