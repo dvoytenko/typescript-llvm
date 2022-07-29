@@ -5,7 +5,9 @@ import { Debug, debugFactory } from './debug';
 import { Instr, instrFactory } from './instr';
 import { Function } from './instr/func';
 import { Jslib, jslibFactory } from './jslib';
-import { declFunction } from './ts/func';
+import { expressions, ExprHandlers } from './ts/expressions';
+import { declFunction, TsFunction } from './ts/func';
+import { StatementHandler, StatementHandlers, statements } from './ts/statements';
 import { types as typesFactory, type Types } from './types';
 import { Value } from './types/base';
 
@@ -21,7 +23,7 @@ export function compile(file: string): string {
   return ir;
 }
 
-class Compiler implements CompilerContext {
+class Compiler {
   private readonly program: ts.Program;
   private readonly checker: ts.TypeChecker;
   private readonly llContext: llvm.LLVMContext;
@@ -31,6 +33,9 @@ class Compiler implements CompilerContext {
   private readonly instr: Instr;
   private readonly debug: Debug;
   private readonly jslib: Jslib;
+  private readonly compilerContext: CompilerContext;
+  private readonly statements: StatementHandlers;
+  private readonly expressions: ExprHandlers;
 
   private readonly functions: Map<ts.Node, TsFunction> = new Map();
   private readonly refs: Map<ts.Node, Value<any>> = new Map();
@@ -59,6 +64,24 @@ class Compiler implements CompilerContext {
     this.instr = instrFactory(this.llContext, this.llBuilder, this.llModule, this.types);
     this.debug = debugFactory(this.llBuilder, this.llModule, this.instr, this.types);
     this.jslib = jslibFactory({instr: this.instr, types: this.types, debug: this.debug});
+
+    // CompilerContext
+    const compiler = this;
+    this.compilerContext = {
+      types: this.types,
+      instr: this.instr,
+      debug: this.debug,
+      jslib: this.jslib,
+      checker: this.checker,
+      currentFunc: () => compiler.currentFunc,
+      ref: this.ref.bind(this),
+      declFunction: this.declFunction.bind(this),
+      genStatement: this.genStatement.bind(this),
+      genExpr: this.genExpr.bind(this),
+    };
+
+    this.statements = statements(this.compilerContext);
+    this.expressions = expressions(this.compilerContext);
   }
 
   compile(): string {
@@ -155,141 +178,19 @@ class Compiler implements CompilerContext {
   }
 
   genStatement(node: ts.Statement) {
-    // QQQ: refactor into separate modules.
-    if (ts.isBlock(node)) {
-      for (const st of node.statements) {
-        this.genStatement(st);
-      }
-    } else if (ts.isReturnStatement(node)) {
-      if (this.currentFunc!.name === 'main') {
-        this.instr.ret(this.currentFunc!.func, this.types.i32.constValue(0));
-      } else if (node.expression) {
-        const value = this.genExpr(node.expression);
-        if (!(value instanceof Value<any>)) {
-          throw new Error('cannot return value');
-        }
-        this.instr.ret(this.currentFunc!.func, value);
-      } else {
-        // TODO: CreateRetVoid
-        // this.builder.CreateStore(this.builder.getInt32(0), this.retval!);
-      }
-    } else if (ts.isExpressionStatement(node)) {
-      this.genExpr(node.expression);
-    } else {
+    const handler = this.statements[node.kind];
+    if (!handler) {
       throw new Error(`unknown statement: ${ts.SyntaxKind[node.kind]}`);
     }
+    handler(node);
   }
 
   genExpr(node: ts.Expression): Value<any>|TsFunction|null {
-    const {types, instr} = this;
-
-    if (ts.isCallExpression(node)) {
-      const expr = node.expression;
-
-      // console.log pragma
-      if (ts.isPropertyAccessExpression(expr) &&
-        ts.isIdentifier(expr.expression) &&
-        expr.expression.text === 'console' &&
-        expr.name.text === 'log') {
-        this.consoleLog(node);
-        return null;
-      }
-
-      const funcRef = this.genExpr(expr);
-      if (!funcRef) {
-        throw new Error(`Function not found`);
-      }
-
-      if (funcRef instanceof TsFunction) {
-        const {func} = funcRef;
-        const args = func.type.args.map((type, index) => {
-          const arg = node.arguments[index];
-          const value = arg ? this.genExpr(arg) : null;
-          if (!(value instanceof Value<any>)) {
-            throw new Error('cannot use the arg');
-          }
-          // const typedValue = instr.cast();
-          return value;
-        });
-        return instr.call(`${func.name}_res`, func, args);
-      }
-
-      throw new Error(`Function cannot be called yet`);
+    const handler = this.expressions[node.kind];
+    if (!handler) {
+      throw new Error(`unknown expression: ${ts.SyntaxKind[node.kind]}`);
     }
-
-    if (ts.isIdentifier(node)) {
-      const idName = node.text;
-      const symbol = this.checker.getSymbolAtLocation(node);
-      if (!symbol) {
-        throw new Error(`no symbol for identifier ${idName}`);
-      }
-      const decl = symbol.valueDeclaration;
-      if (!decl) {
-        throw new Error(`no declaration for identifier ${idName}`);
-      }
-
-      if (ts.isFunctionDeclaration(decl)) {
-        return this.declFunction(decl);
-      }
-
-      return this.ref(decl);
-    }
-
-    if (ts.isNumericLiteral(node)) {
-      // TODO: type (llvm.ConstantFP.get(this.builder.getFloatTy(), 1.4))
-      const num = types.i32.constValue(parseInt(node.text, 10));
-      // TODO: better name: take from VarDecl, or Param name, etc.
-      const jsnumPtr = instr.malloc('num', types.jsNumber);
-      return instr.storeBoxed(jsnumPtr, num);
-    }
-
-    if (ts.isBinaryExpression(node)) {
-      const left = this.genExpr(node.left);
-      const right = this.genExpr(node.right);
-      if (!(left instanceof Value<any>)) {
-        throw new Error('cannot use value for binary expression');
-      }
-      if (!(right instanceof Value<any>)) {
-        throw new Error('cannot use value for binary expression');
-      }
-      const op = node.operatorToken;
-      if (op.kind === ts.SyntaxKind.PlusToken) {
-        // TODO: better name: var name, etc?
-        return this.jslib.add('add_res', left, right);
-      } else {
-        throw new Error(`unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`);
-      }
-    }
-
-    throw new Error(`unknown expression: ${ts.SyntaxKind[node.kind]}`);
-  }
-
-  private consoleLog(node: ts.CallExpression) {
-    const {debug} = this;
-    let fmt = '';
-    const args: Value<any>[] = [];
-    for (const arg of node.arguments) {
-      if (fmt.length > 0) {
-        fmt += ' ';
-      }
-      if (ts.isStringLiteral(arg)) {
-        fmt += arg.text;
-      } else {
-        // TODO: extract type from the signature and use
-        // correct mask.
-        const value = this.genExpr(arg);
-        if (value == null) {
-          fmt += 'null';
-        } else if (value instanceof TsFunction) {
-          fmt += `<function ${value.name}>`;
-        } else {
-          fmt += '%s';
-          args.push(this.debug.debugValue(value));
-        }
-      }
-    }
-
-    debug.printf(fmt, args);
+    return handler(node);
   }
 }
 
@@ -302,17 +203,4 @@ function isExported(node: ts.Node): boolean {
     return false;
   }
   return node.modifiers.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword);
-}
-
-class TsFunction {
-  public generated: boolean = false;
-
-  constructor(
-    public readonly node: ts.FunctionDeclaration,
-    public readonly func: Function<any, any>,
-  ) {}
-
-  get name() {
-    return this.func.name;
-  }
 }
