@@ -146,13 +146,20 @@ function strictConvertFactory(builder: llvm.IRBuilder, types: Types, malloc: Ins
     }
 
     // Narrow and box.
-    // TODO: make it more generic?
-    // QQQQ:   i32type to ptr_jsv
+    // TODO: make it more generic.
     if (toType.isA(types.jsValue.pointerOf()) &&
         value.isA(types.i32)) {
       const jsn = malloc('jsn', types.jsNumber);
       storeBoxed(jsn, value);
       return cast('jsv', jsn, types.jsValue) as unknown as Value<T>;
+    }
+
+    // Narrow and unbox: ptr_jsv to i32.
+    // TODO: make it more generic.
+    if (toType.isA(types.i32) &&
+        value.isA(types.jsValue.pointerOf())) {
+      const jsn = cast('to_jsn', value, types.jsNumber);
+      return loadUnboxed(jsn);
     }
 
     // TODO: a more canonical BoxedType/etc concepts.

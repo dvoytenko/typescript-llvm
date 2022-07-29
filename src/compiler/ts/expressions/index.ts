@@ -93,7 +93,8 @@ function consoleLog(context: CompilerContext, node: ts.CallExpression) {
   debug.printf(fmt, args);
 }
 
-function identifierFactory({checker, declFunction, ref}: CompilerContext) {
+function identifierFactory(context: CompilerContext) {
+  const {checker, declFunction, ref, instr} = context;
   return (node: ts.Identifier) => {
     const idName = node.text;
     const symbol = checker.getSymbolAtLocation(node);
@@ -109,7 +110,10 @@ function identifierFactory({checker, declFunction, ref}: CompilerContext) {
       return declFunction(decl);
     }
 
-    return ref(decl);
+    const value = ref(decl);
+    const tsType = checker.getTypeOfSymbolAtLocation(symbol, node);
+    const gType = tsToGTypeUnboxed(tsType, context);
+    return instr.strictConvert(value, gType);
   };
 }
 
