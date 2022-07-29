@@ -14,13 +14,13 @@ export interface Instr {
   values: InstrValues;
   globalConstVar: <T extends Type>(name: string, value: Value<T>) => GlobalVar<T>;
   globalStringPtr: (name: string, value: string) => Pointer<I8Type>;
-  alloca: <T extends Type>(type: T, arraySize?: Value<I32Type> | null) => Pointer<T>;
-  malloc: <T extends Type>(type: T, arraySize?: Value<I64Type> | null) => Pointer<T>;
-  cast: <T extends Type>(ptr: Pointer<Type>, toType: T) => Pointer<T>;
-  add: <T extends IntType<any>>(a: Value<T>, b: Value<T>) => Value<T>;
-  icmpEq: <T extends IntType<any>>(a: Value<T>, b: Value<T>) => Value<BoolType>;
+  alloca: <T extends Type>(name: string, type: T, arraySize?: Value<I32Type> | null) => Pointer<T>;
+  malloc: <T extends Type>(name: string, type: T, arraySize?: Value<I64Type> | null) => Pointer<T>;
+  cast: <T extends Type>(name: string, ptr: Pointer<Type>, toType: T) => Pointer<T>;
+  add: <T extends IntType<any>>(name: string, a: Value<T>, b: Value<T>) => Value<T>;
+  icmpEq: <T extends IntType<any>>(name: string, a: Value<T>, b: Value<T>) => Value<BoolType>;
   // TODO: only primitives (first class, non-aggr)
-  load: <T extends Type>(ptr: Pointer<T>) => Value<T>;
+  load: <T extends Type>(name: string, ptr: Pointer<T>) => Value<T>;
   loadUnboxed: <T extends Type & BoxedType<any>>(ptr: Pointer<T>) =>
       Value<T extends BoxedType<infer BT> ? BT : never>;
   // store: () => void;
@@ -32,7 +32,7 @@ export interface Instr {
   // TODO: only primitives (first class, non-aggr)
   // TODO: pass func to check return type
   ret: <T extends Type>(func: Function<T, any>, value: Value<T>) => void;
-  call: <Ret extends Type, Args extends FunctionArgs>(func: Function<Ret, Args>, args: FunctionArgValues<Args>) => Value<Ret>;
+  call: <Ret extends Type, Args extends FunctionArgs>(name: string, func: Function<Ret, Args>, args: FunctionArgValues<Args>) => Value<Ret>;
   // Branching.
   condBr: (cond: Value<BoolType>, trueBlock: llvm.BasicBlock, falseBlock: llvm.BasicBlock) => void;
   switchBr: <T extends IntType<any>>(cond: Value<T>, defBlock: llvm.BasicBlock, cases: SwitchCase<T>[]) => void;
@@ -66,8 +66,8 @@ export function instrFactory(context: llvm.LLVMContext, builder: llvm.IRBuilder,
 }
 
 function allocaFactory(builder: llvm.IRBuilder) {
-  return <T extends Type>(type: T, arraySize?: Value<I32Type> | null) => {
-    const ptr = builder.CreateAlloca(type.llType, arraySize?.llValue);
+  return <T extends Type>(name: string, type: T, arraySize?: Value<I32Type> | null) => {
+    const ptr = builder.CreateAlloca(type.llType, arraySize?.llValue, name);
     return new Pointer(type, ptr);
   };
 }
@@ -84,51 +84,55 @@ function mallocFactory(builder: llvm.IRBuilder, module: llvm.Module) {
     "malloc",
     module
   );
-  return <T extends Type>(type: T, arraySize?: Value<I64Type> | null) => {
+  return <T extends Type>(name: string, type: T, arraySize?: Value<I64Type> | null) => {
     const pointerType = PointerType.of(type);
     const size = type.sizeof(builder);
     const ptr = builder.CreateBitCast(
       builder.CreateCall(
         func,
-        [arraySize?.llValue ?? size.llValue]
+        [arraySize?.llValue ?? size.llValue],
+        `${name}_ptr`
       ),
-      pointerType.llType
+      pointerType.llType,
+      name
     );
     return new Pointer(type, ptr);
   };
 }
 
 function castFactory(builder: llvm.IRBuilder) {
-  return <T extends Type>(ptr: Pointer<Type>, toType: T) => {
+  return <T extends Type>(name: string, ptr: Pointer<Type>, toType: T) => {
     const castPtr = builder.CreateBitCast(
       ptr.llValue,
-      PointerType.of(toType).llType
+      PointerType.of(toType).llType,
+      name
     );
     return new Pointer(toType, castPtr);
   };
 }
 
 function addFactory(builder: llvm.IRBuilder) {
-  return <T extends IntType<any>>(a: Value<T>, b: Value<T>) => {
-    const res = builder.CreateAdd(a.llValue, b.llValue);
+  return <T extends IntType<any>>(name: string, a: Value<T>, b: Value<T>) => {
+    const res = builder.CreateAdd(a.llValue, b.llValue, name);
     return new Value(a.type, res);
   };
 }
 
 function icmpEqFactory(types: Types, builder: llvm.IRBuilder) {
-  return <T extends IntType<any>>(a: Value<T>, b: Value<T>) => {
-    const res = builder.CreateICmpEQ(a.llValue, b.llValue);
+  return <T extends IntType<any>>(name: string, a: Value<T>, b: Value<T>) => {
+    const res = builder.CreateICmpEQ(a.llValue, b.llValue, name);
     return new Value(types.bool, res);
   };
 }
 
 function loadFactory(builder: llvm.IRBuilder) {
-  return <T extends Type>(ptr: Pointer<T>) => {
+  return <T extends Type>(name: string, ptr: Pointer<T>) => {
     // public CreateLoad(type: Type, ptr: Value, name?: string): LoadInst;
     const toType = ptr.type.toType;
     const res = builder.CreateLoad(
       toType.llType,
-      ptr.llValue
+      ptr.llValue,
+      name
     );
     return new Value(toType, res);
   };
@@ -167,8 +171,11 @@ function retFactory(builder: llvm.IRBuilder) {
 }
 
 function callFactory(builder: llvm.IRBuilder) {
-  return <Ret extends Type, Args extends FunctionArgs>(func: Function<Ret, Args>, args: FunctionArgValues<Args>) => {
-    const res = builder.CreateCall(func.llFunc, func.type.createArgValues(args).map(v => v.llValue));
+  return <Ret extends Type, Args extends FunctionArgs>(name: string, func: Function<Ret, Args>, args: FunctionArgValues<Args>) => {
+    const res = builder.CreateCall(
+      func.llFunc,
+      func.type.createArgValues(args).map(v => v.llValue),
+      name);
     return new Value(func.type.retType, res);
   };
 }

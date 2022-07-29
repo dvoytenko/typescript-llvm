@@ -61,13 +61,13 @@ function doCompile({
     const argB = func.arg("b");
     const argC = func.arg("c");
 
-    const ptrA = instr.cast(argA, jsValue);
-    const ptrB = instr.cast(argB, jsValue);
-    const ptrC = instr.cast(argC, jsValue);
+    const ptrA = instr.cast('ptr_a', argA, jsValue);
+    const ptrB = instr.cast('ptr_b', argB, jsValue);
+    const ptrC = instr.cast('ptr_c', argC, jsValue);
   
-    const ptrSum1 = jslib.add(ptrA, ptrB);
-    const ptrSum2 = jslib.add(ptrSum1, ptrC);
-    instr.ret(func, instr.cast(ptrSum2, jsNumber));
+    const ptrSum1 = jslib.add('sum1', ptrA, ptrB);
+    const ptrSum2 = jslib.add('sum2', ptrSum1, ptrC);
+    instr.ret(func, instr.cast('sum2_jsn', ptrSum2, jsNumber));
       
     return func;
   })();
@@ -81,7 +81,7 @@ function doCompile({
   const varB = instr.globalConstVar("b", jsNumber.box(4));
   const varC = instr.globalConstVar("c", jsNumber.box(5));
 
-  const res = instr.call(addFunc, {a: varA.ptr, b: varB.ptr, c: varC.ptr});
+  const res = instr.call('add_res', addFunc, {a: varA.ptr, b: varB.ptr, c: varC.ptr});
 
   debug.printf("hello world! %s", [debug.debugValue(res)]);
   instr.ret(mainFunc, i32.constValue(0));

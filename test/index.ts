@@ -47,8 +47,8 @@ async function test(file: string): Promise<void> {
   const sourceFile = path.resolve(DATA_DIR, file);
 
   // const ll = compile(sourceFile);
-  const ll = compile2(sourceFile);
-  // const ll = compile3(sourceFile);
+  // const ll = compile2(sourceFile);
+  const ll = compile3(sourceFile);
   const llFile = path.resolve(workDir, file.replace('.ts', '.ll'));
   await fsPromises.writeFile(llFile, ll);
   const result = await execLl(llFile);

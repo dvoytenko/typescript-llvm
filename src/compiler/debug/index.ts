@@ -34,7 +34,7 @@ function debugValueFactory(instr: Instr, types: Types, snprintf: llvm.Function) 
 
     const arg = func.arg("v");
     const jsType = arg.type.toType.loadJsType(builder, arg);
-    const strPtr = instr.malloc(types.i8, types.i64.constValue(1000));
+    const strPtr = instr.malloc('s', types.i8, types.i64.constValue(1000));
 
     const nullBlock = instr.block(func, 'jsnull');
     const numBlock = instr.block(func, 'jsnum');
@@ -61,7 +61,7 @@ function debugValueFactory(instr: Instr, types: Types, snprintf: llvm.Function) 
     instr.ret(func, fmtNull);
 
     instr.insertPoint(numBlock);
-    const ptrNum = instr.cast(arg, types.jsNumber);
+    const ptrNum = instr.cast('jsn', arg, types.jsNumber);
     const unboxedNum = instr.loadUnboxed(ptrNum);
     const fmtNum = instr.globalStringPtr("fmt.jsnum", "JSV<number %d>");
     builder.CreateCall(
@@ -75,7 +75,8 @@ function debugValueFactory(instr: Instr, types: Types, snprintf: llvm.Function) 
           []
         ),
         unboxedNum.llValue
-      ]
+      ],
+      'deb'
     );
     instr.ret(func, strPtr);
   
@@ -87,7 +88,7 @@ function debugValueFactory(instr: Instr, types: Types, snprintf: llvm.Function) 
   })();
 
   return (value: Value<any>) => {
-    const strPtr = instr.malloc(types.i8, types.i64.constValue(1000));
+    const strPtr = instr.malloc('s', types.i8, types.i64.constValue(1000));
     if (value.type instanceof IntType) {
       const fmtInt = builder.CreateGlobalStringPtr("(i%d %d)", "fmt.int");
       builder.CreateCall(
@@ -102,15 +103,16 @@ function debugValueFactory(instr: Instr, types: Types, snprintf: llvm.Function) 
           ),
           types.i32.constValue(value.type.bits).llValue,
           value.llValue
-        ]
+        ],
+        'deb'
       );
       return strPtr;
     }
 
     if (value.type instanceof PointerType &&
         value.type.toType instanceof JsValueType) {
-      const jsv = instr.cast(value, types.jsValue);
-      return instr.call(debugJsvFunc, {v: jsv});
+      const jsv = instr.cast('jsv', value, types.jsValue);
+      return instr.call('jsv_deb', debugJsvFunc, {v: jsv});
     }
 
     const unk = builder.CreateGlobalStringPtr("(unknown)", "fmt.unk");
@@ -123,7 +125,8 @@ function printfFactory(builder: llvm.IRBuilder, snprintf: llvm.Function, puts: l
     const fmtPtr = builder.CreateGlobalStringPtr(fmt, "fmt");
     const strPtr = builder.CreateAlloca(
       builder.getInt8Ty(),
-      builder.getInt32(1000)
+      builder.getInt32(1000),
+      's'
     );
     builder.CreateCall(
       snprintf,
@@ -136,11 +139,13 @@ function printfFactory(builder: llvm.IRBuilder, snprintf: llvm.Function, puts: l
           []
         ),
         ...args.map(v => v instanceof Value ? v.llValue : v),
-      ]
+      ],
+      's'
     );
     builder.CreateCall(
       puts,
-      [strPtr]
+      [strPtr],
+      'printf'
     );
   };
 }

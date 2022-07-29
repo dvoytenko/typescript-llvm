@@ -17,9 +17,9 @@ interface JslibFunctions {
 }
 
 interface AddInstr {
-  (a: Value<I32Type>, b: Value<I32Type>): Value<I32Type>;
-  (a: Pointer<JsNumberType>, b: Pointer<JsNumberType>): Pointer<JsNumberType>;
-  (a: Value<any>, b: Value<any>): Pointer<JsUnknownType>;
+  (name: string, a: Value<I32Type>, b: Value<I32Type>): Value<I32Type>;
+  (name: string, a: Pointer<JsNumberType>, b: Pointer<JsNumberType>): Pointer<JsNumberType>;
+  (name: string, a: Value<any>, b: Value<any>): Pointer<JsUnknownType>;
 }
 
 export interface Jslib {
@@ -53,7 +53,7 @@ function addFactory({instr, types, debug}: Gen, values: JslibValues, funcs: Jsli
   const {i32, jsNumber, jsValue} = types;
   const jsNumberPtr = jsNumber.pointerOf();
   const jsValuePtr = jsValue.pointerOf();
-  return (a: Value<any>, b: Value<any>): Value<any> => {
+  return (name: string, a: Value<any>, b: Value<any>): Value<any> => {
     // TODO: the rules are incomplete and mostly wrong.
 
     // Both values are numeric: the result is numeric.
@@ -61,9 +61,9 @@ function addFactory({instr, types, debug}: Gen, values: JslibValues, funcs: Jsli
         (b.isA(i32) || b.isA(jsNumberPtr))) {
       const numA = a.isA(i32) ? a : instr.loadUnboxed(a);
       const numB = b.isA(i32) ? b : instr.loadUnboxed(b);
-      const numRes = instr.add(numA, numB);
+      const numRes = instr.add(`${name}_sum`, numA, numB);
       if (a.isA(jsNumberPtr) || b.isA(jsNumberPtr)) {
-        const ptr = instr.malloc(jsNumber);
+        const ptr = instr.malloc(name, jsNumber);
         instr.storeBoxed(ptr, numRes);
         return ptr;
       }
@@ -75,19 +75,19 @@ function addFactory({instr, types, debug}: Gen, values: JslibValues, funcs: Jsli
     // TODO: find home.
     const toJsValue = (a: Value<any>): Pointer<JsUnknownType> => {
       if (a.isA(jsValuePtr)) {
-        return instr.cast(a, jsValue);
+        return instr.cast(name, a, jsValue);
       }
       if (a.isA(i32)) {
-        const ptr = instr.malloc(jsNumber);
+        const ptr = instr.malloc(name, jsNumber);
         instr.storeBoxed(ptr, a);
-        return instr.cast(ptr, jsValue);
+        return instr.cast(name, ptr, jsValue);
       }
       return values.jsNull;
     };
 
     const jsvA = toJsValue(a);
     const jsvB = toJsValue(b);
-    return instr.call(funcs.addAny, {a: jsvA, b: jsvB});
+    return instr.call(name, funcs.addAny, {a: jsvA, b: jsvB});
   };
 }
 
@@ -113,8 +113,8 @@ function addAnyFunctionFactory({instr, types, debug}: Gen, values: JslibValues) 
   const jsTypeA = uptrA.type.toType.loadJsType(instr.builder, uptrA);
   const jsTypeB = uptrA.type.toType.loadJsType(instr.builder, uptrB);
 
-  const isNumA = instr.icmpEq(jsTypeA, i32.constValue(JsType.NUMBER));
-  const isNumB = instr.icmpEq(jsTypeB, i32.constValue(JsType.NUMBER));
+  const isNumA = instr.icmpEq('is_num_a', jsTypeA, i32.constValue(JsType.NUMBER));
+  const isNumB = instr.icmpEq('is_num_b', jsTypeB, i32.constValue(JsType.NUMBER));
 
   const num1Block = instr.block(func, 'num1');
   const num2Block = instr.block(func, 'num2');
@@ -127,23 +127,23 @@ function addAnyFunctionFactory({instr, types, debug}: Gen, values: JslibValues) 
 
   instr.insertPoint(num2Block);
 
-  const ptrA = instr.cast(uptrA, jsNumber);
-  const ptrB = instr.cast(uptrB, jsNumber);
+  const ptrA = instr.cast('jsn_a', uptrA, jsNumber);
+  const ptrB = instr.cast('jsn_b', uptrB, jsNumber);
 
   const unboxedA = instr.loadUnboxed(ptrA);
   const unboxedB = instr.loadUnboxed(ptrB);
 
-  const computedSum = instr.add(unboxedA, unboxedB);
+  const computedSum = instr.add('sum', unboxedA, unboxedB);
 
-  const ptrSum = instr.malloc(types.jsNumber);
+  const ptrSum = instr.malloc('jsn_sum', types.jsNumber);
   instr.storeBoxed(ptrSum, computedSum);
 
-  instr.ret(func, instr.cast(ptrSum, jsValue));
+  instr.ret(func, instr.cast('sum_jsv', ptrSum, jsValue));
 
   instr.insertPoint(unkBlock);
 
   // TODO: string, other types, toPrimitive, undefined.
-  instr.ret(func, instr.cast(values.jsNull, jsValue));
+  instr.ret(func, instr.cast('jsv_null', values.jsNull, jsValue));
 
   return func;
 }

@@ -25,6 +25,10 @@ export class Type {
     return this.pointerOf().create(ptr);
   }
 
+  get typeName(): string {
+    return this.constructor.name.toLowerCase();
+  }
+
   sizeof(builder: llvm.IRBuilder): Value<I64Type> {
     // TODO: resolve types/consts via types/gen?
     const arrayType = llvm.PointerType.get(this.llType, 0);
@@ -34,9 +38,13 @@ export class Type {
       [
         builder.getInt32(1),
       ],
-      'ptr_to_null'
+      `${this.typeName}_sizeof_ptr`
     );
-    const intVal = builder.CreatePtrToInt(gep, builder.getInt64Ty());
+    const intVal = builder.CreatePtrToInt(
+      gep,
+      builder.getInt64Ty(),
+      `${this.typeName}_sizeof`
+    );
     return new Value(new I64Type(this.context), intVal);
   }
 
@@ -75,6 +83,10 @@ export class PointerType<T extends Type> extends Type {
       context,
       llvm.PointerType.get(toType.llType, 0)
     );
+  }
+
+  override get typeName(): string {
+    return `ptr_${this.toType.typeName}`;
   }
 
   override isA<T extends Type>(other: T): this is T {

@@ -212,7 +212,7 @@ class Compiler {
             return [name, value];
           })
         );
-        return instr.call(func, args);
+        return instr.call(`${func.name}_res`, func, args);
       }
 
       throw new Error(`Function cannot be called yet`);
@@ -239,7 +239,8 @@ class Compiler {
     if (ts.isNumericLiteral(node)) {
       // TODO: type (llvm.ConstantFP.get(this.builder.getFloatTy(), 1.4))
       const num = types.i32.constValue(parseInt(node.text, 10));
-      const jsnumPtr = instr.malloc(types.jsNumber);
+      // TODO: better name: take from VarDecl, or Param name, etc.
+      const jsnumPtr = instr.malloc('num', types.jsNumber);
       return instr.storeBoxed(jsnumPtr, num);
     }
 
@@ -254,7 +255,8 @@ class Compiler {
       }
       const op = node.operatorToken;
       if (op.kind === ts.SyntaxKind.PlusToken) {
-        return this.jslib.add(left, right);
+        // TODO: better name: var name, etc?
+        return this.jslib.add('add_res', left, right);
       } else {
         throw new Error(`unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`);
       }

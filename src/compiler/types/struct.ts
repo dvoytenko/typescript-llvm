@@ -28,6 +28,10 @@ export class StructType<Fields extends StructFields> extends Type {
     this.fieldNames = Object.entries(fields).map(([name]) => name);
   }
 
+  override get typeName(): string {
+    return this.name.toLowerCase();
+  }
+
   createConst(fields: StructValues<Fields>): Value<typeof this> {
     const struct = llvm.ConstantStruct.get(
       // TODO: remove unneeded cast.
@@ -45,7 +49,8 @@ export class StructType<Fields extends StructFields> extends Type {
       [
         builder.getInt32(0),
         builder.getInt32(this.fieldNames.indexOf(field as string))
-      ]
+      ],
+      `${this.typeName}_${field as string}_ptr`
     );
     const type = this.fields[field];
     return new Pointer(type, fieldPtr);
@@ -54,7 +59,7 @@ export class StructType<Fields extends StructFields> extends Type {
   load<F extends keyof Fields>(builder: llvm.IRBuilder, ptr: Pointer<typeof this>, field: F): Value<Fields[F]> {
     const type = this.fields[field];
     const fieldPtr = this.gep(builder, ptr, field);
-    const value = builder.CreateLoad(type.llType, fieldPtr.llValue);
+    const value = builder.CreateLoad(type.llType, fieldPtr.llValue, field as string);
     return new Value<Fields[F]>(type, value);
   }
 
