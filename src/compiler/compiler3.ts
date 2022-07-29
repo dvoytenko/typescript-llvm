@@ -5,7 +5,7 @@ import { Jslib, jslibFactory } from './jslib';
 import { types as typesFactory, type Types } from './types';
 import { Value } from './types/base';
 
-export function compile(): string {
+export function compile(file: string): string {
   const context = new llvm.LLVMContext();
   const module = new llvm.Module('demo', context);
   const builder = new llvm.IRBuilder(context);

@@ -3,7 +3,7 @@ import { Debug } from '../debug';
 import { Instr } from '../instr';
 import { Function } from '../instr/func';
 import { Types } from '../types';
-import { IntType, Pointer, PointerType, Value } from '../types/base';
+import { I32Type, IntType, Pointer, PointerType, Value } from '../types/base';
 import { JsNullType } from '../types/jsnull';
 import { JsNumberType } from '../types/jsnumber';
 import { JsType, JsUnknownType, JsUnknownType2, JsValueType } from '../types/jsvalue';
@@ -16,10 +16,16 @@ interface JslibFunctions {
   addAny: Function<PointerType<JsUnknownType2>, {a: PointerType<JsUnknownType2>, b: PointerType<JsUnknownType2>}>;
 }
 
+interface AddInstr {
+  (a: Value<I32Type>, b: Value<I32Type>): Value<I32Type>;
+  (a: Pointer<JsNumberType>, b: Pointer<JsNumberType>): Pointer<JsNumberType>;
+  (a: Value<any>, b: Value<any>): Pointer<JsUnknownType>;
+}
+
 export interface Jslib {
   values: JslibValues,
   funcs: JslibFunctions,
-  add: (a: Value<any>, b: Value<any>) => Value<any>;
+  add: AddInstr;
 }
 
 export interface Gen {
@@ -43,7 +49,7 @@ export function jslibFactory(gen: Gen): Jslib {
   };
 }
 
-function addFactory({instr, types, debug}: Gen, values: JslibValues, funcs: JslibFunctions) {
+function addFactory({instr, types, debug}: Gen, values: JslibValues, funcs: JslibFunctions): AddInstr {
   const {i32, jsNumber, jsValue} = types;
   const jsNumberPtr = jsNumber.pointerOf();
   const jsValuePtr = jsValue.pointerOf();

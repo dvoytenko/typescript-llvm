@@ -7,8 +7,11 @@ import { StructType } from './struct';
 export class JsNumberType extends JsValueType<JsType.NUMBER, {
   value: I32Type
 }> implements BoxedType<I32Type> {
+  public readonly unboxedType: I32Type;
+
   constructor(context: llvm.LLVMContext) {
     super(context, JsType.NUMBER, {value: new I32Type(context)});
+    this.unboxedType = new I32Type(context);
   }
 
   // TODO: move to JsPrimitiveType?

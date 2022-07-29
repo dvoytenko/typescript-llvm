@@ -6,8 +6,12 @@ import { FunctionArgs, FunctionArgValues, FunctionType } from '../types/func';
 import { Function } from './func';
 import { GlobalVar } from './globalvar';
 
+export interface InstrValues {
+}
+
 export interface Instr {
   builder: llvm.IRBuilder;
+  values: InstrValues;
   globalConstVar: <T extends Type>(name: string, value: Value<T>) => GlobalVar<T>;
   globalStringPtr: (name: string, value: string) => Pointer<I8Type>;
   alloca: <T extends Type>(type: T, arraySize?: Value<I32Type> | null) => Pointer<T>;
@@ -35,8 +39,11 @@ export interface Instr {
 }
 
 export function instrFactory(context: llvm.LLVMContext, builder: llvm.IRBuilder, module: llvm.Module, types: Types): Instr {
+  const values: InstrValues = {
+  };
   return {
     builder,
+    values,
     globalConstVar: (name, value) => new GlobalVar(module, name, value),
     globalStringPtr: (name, value) => new Pointer(types.i8, builder.CreateGlobalStringPtr(value, name)),
     alloca: allocaFactory(builder),

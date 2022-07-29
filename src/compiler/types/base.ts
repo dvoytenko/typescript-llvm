@@ -12,6 +12,10 @@ export class Type {
   isA<T extends Type>(other: T): this is T {
     return this instanceof other.constructor;
   }
+
+  isBoxed(): this is BoxedType<any> {
+    return typeof (this as unknown as BoxedType<any>).loadUnboxed === 'function';
+  }
   
   pointerOf(): PointerType<typeof this> {
     return new PointerType(this.context, this);
@@ -42,6 +46,7 @@ export class Type {
 }
 
 export interface BoxedType<BT extends Type> {
+  unboxedType: BT;
   loadUnboxed(builder: llvm.IRBuilder, ptr: Pointer<typeof this>): Value<BT>;
   storeBoxed(builder: llvm.IRBuilder, ptr: Pointer<typeof this>, value: Value<BT>);
 }
