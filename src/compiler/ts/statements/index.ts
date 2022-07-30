@@ -6,11 +6,11 @@ export type StatementHandler<ST extends ts.Statement> = (st: ST) => void;
 
 export type StatementHandlers = {
   [K in ts.SyntaxKind]?: StatementHandler<any>;
-}
+};
 
 type StatementFactories = {
   [K in ts.SyntaxKind]?: (context: CompilerContext) => StatementHandler<any>;
-}
+};
 
 export function statements(context: CompilerContext): StatementHandlers {
   const factories: StatementFactories = {
@@ -20,29 +20,33 @@ export function statements(context: CompilerContext): StatementHandlers {
     [ts.SyntaxKind.IfStatement]: ifFactory,
   };
   return Object.fromEntries(
-    Object.entries(factories).map(
-      ([kind, factory]) => [kind, factory(context)]
-    )
+    Object.entries(factories).map(([kind, factory]) => [kind, factory(context)])
   );
 }
 
-function blockFactory({genStatement}: CompilerContext) {
+function blockFactory({ genStatement }: CompilerContext) {
   return (node: ts.Block) => {
-    node.statements.forEach(st => genStatement(st));
+    node.statements.forEach((st) => genStatement(st));
   };
 }
 
-function returnFactory({currentFunc, types, instr, genExpr, terminateBlock}: CompilerContext) {
+function returnFactory({
+  currentFunc,
+  types,
+  instr,
+  genExpr,
+  terminateBlock,
+}: CompilerContext) {
   return (node: ts.ReturnStatement) => {
     const func = currentFunc()!;
     const gFunc = func.func;
-    if (func.name === 'main') {
+    if (func.name === "main") {
       // QQQ: remove "main" specialization?
       instr.ret(gFunc, types.i32.constValue(0));
     } else if (node.expression) {
       const value = genExpr(node.expression);
       if (!(value instanceof Value<any>)) {
-        throw new Error('cannot return value');
+        throw new Error("cannot return value");
       }
       const retType = gFunc.type.retType;
       instr.ret(gFunc, instr.strictConvert(value, retType));
@@ -54,32 +58,32 @@ function returnFactory({currentFunc, types, instr, genExpr, terminateBlock}: Com
   };
 }
 
-function expressionFactory({genExpr}: CompilerContext) {
+function expressionFactory({ genExpr }: CompilerContext) {
   return (node: ts.ExpressionStatement) => {
     genExpr(node.expression);
   };
 }
 
-function ifFactory({currentFunc, instr, genExpr, genStatement, genInBlock}: CompilerContext) {
+function ifFactory({
+  currentFunc,
+  instr,
+  genExpr,
+  genStatement,
+  genInBlock,
+}: CompilerContext) {
   return (node: ts.IfStatement) => {
     const func = currentFunc()!;
     const gFunc = func.func;
 
     const value = genExpr(node.expression);
     if (!(value instanceof Value<any>)) {
-      throw new Error('cannot use this value for branching');
+      throw new Error("cannot use this value for branching");
     }
 
-    const trueBlock = instr.block(gFunc, 'then');
-    const falseBlock = node.elseStatement ?
-      instr.block(gFunc, 'else') :
-      null;
-    const contBlock = instr.block(gFunc, 'cont');
-    instr.condBr(
-      value,
-      trueBlock,
-      falseBlock ?? contBlock
-    );
+    const trueBlock = instr.block(gFunc, "then");
+    const falseBlock = node.elseStatement ? instr.block(gFunc, "else") : null;
+    const contBlock = instr.block(gFunc, "cont");
+    instr.condBr(value, trueBlock, falseBlock ?? contBlock);
 
     // then:
     genInBlock(

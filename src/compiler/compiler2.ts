@@ -1,24 +1,28 @@
-import llvm from 'llvm-bindings';
+import llvm from "llvm-bindings";
 import ts from "typescript";
-import { CompilerContext } from './context';
-import { Debug, debugFactory } from './debug';
-import { Instr, instrFactory } from './instr';
-import { Function } from './instr/func';
-import { Jslib, jslibFactory } from './jslib';
-import { expressions, ExprHandlers } from './ts/expressions';
-import { declFunction, TsFunction } from './ts/func';
-import { StatementHandler, StatementHandlers, statements } from './ts/statements';
-import { types as typesFactory, type Types } from './types';
-import { Value } from './types/base';
+import { CompilerContext } from "./context";
+import { Debug, debugFactory } from "./debug";
+import { Instr, instrFactory } from "./instr";
+import { Function } from "./instr/func";
+import { Jslib, jslibFactory } from "./jslib";
+import { expressions, ExprHandlers } from "./ts/expressions";
+import { declFunction, TsFunction } from "./ts/func";
+import {
+  StatementHandler,
+  StatementHandlers,
+  statements,
+} from "./ts/statements";
+import { types as typesFactory, type Types } from "./types";
+import { Value } from "./types/base";
 
 export function compile(file: string): string {
-  console.log('COMPILE: ', file);
+  console.log("COMPILE: ", file);
 
   const compiler = new Compiler([file]);
   const ir = compiler.compile();
 
-  console.log('');
-  console.log('IR:');
+  console.log("");
+  console.log("IR:");
   console.log(ir);
   return ir;
 }
@@ -40,7 +44,7 @@ class Compiler {
   private readonly functions: Map<ts.Node, TsFunction> = new Map();
   private readonly refs: Map<ts.Node, Value<any>> = new Map();
   private sourceFile: ts.SourceFile;
-  private currentFunc: TsFunction|null = null;
+  private currentFunc: TsFunction | null = null;
   private blockTerminated: boolean[] = [];
 
   constructor(files: string[]) {
@@ -59,12 +63,26 @@ class Compiler {
     this.checker = this.program.getTypeChecker();
 
     this.llContext = new llvm.LLVMContext();
-    this.llModule = new llvm.Module('demo', this.llContext);
+    this.llModule = new llvm.Module("demo", this.llContext);
     this.llBuilder = new llvm.IRBuilder(this.llContext);
     this.types = typesFactory(this.llContext);
-    this.instr = instrFactory(this.llContext, this.llBuilder, this.llModule, this.types);
-    this.debug = debugFactory(this.llBuilder, this.llModule, this.instr, this.types);
-    this.jslib = jslibFactory({instr: this.instr, types: this.types, debug: this.debug});
+    this.instr = instrFactory(
+      this.llContext,
+      this.llBuilder,
+      this.llModule,
+      this.types
+    );
+    this.debug = debugFactory(
+      this.llBuilder,
+      this.llModule,
+      this.instr,
+      this.types
+    );
+    this.jslib = jslibFactory({
+      instr: this.instr,
+      types: this.types,
+      debug: this.debug,
+    });
 
     // CompilerContext
     const compiler = this;
@@ -108,7 +126,11 @@ class Compiler {
   private ref(node: ts.Node): Value<any> {
     const value = this.refs.get(node);
     if (!value) {
-      throw new Error(`ref not found for ${ts.SyntaxKind[node.kind]} ${(node as unknown as ts.FunctionDeclaration).name?.text}`);
+      throw new Error(
+        `ref not found for ${ts.SyntaxKind[node.kind]} ${
+          (node as unknown as ts.FunctionDeclaration).name?.text
+        }`
+      );
     }
     return value;
   }
@@ -134,7 +156,9 @@ class Compiler {
   private gen() {
     // Functions.
     while (true) {
-      const toGen = Array.from(this.functions.values()).filter(f => !f.generated);
+      const toGen = Array.from(this.functions.values()).filter(
+        (f) => !f.generated
+      );
       if (toGen.length === 0) {
         break;
       }
@@ -149,7 +173,7 @@ class Compiler {
       return this.functions.get(node)!;
     }
 
-    console.log('QQQ: declFunction: ', node.name?.text);
+    console.log("QQQ: declFunction: ", node.name?.text);
 
     const func = declFunction(node, this.compilerContext);
 
@@ -169,8 +193,8 @@ class Compiler {
   private genFunction(tsFunc: TsFunction) {
     tsFunc.generated = true;
 
-    const {node, func} = tsFunc;
-    const {instr, types, debug} = this;
+    const { node, func } = tsFunc;
+    const { instr, types, debug } = this;
 
     if (!node.body) {
       return;
@@ -178,17 +202,17 @@ class Compiler {
 
     this.currentFunc = tsFunc;
 
-    instr.insertPoint(instr.block(func, 'entry'));
+    instr.insertPoint(instr.block(func, "entry"));
 
     this.genStatement(node.body);
 
     this.currentFunc = null;
 
     if (llvm.verifyFunction(func.llFunc)) {
-      console.log(`${'\x1b[31m'}${tsFunc.name}: FAILED${'\x1b[0m'}`);
+      console.log(`${"\x1b[31m"}${tsFunc.name}: FAILED${"\x1b[0m"}`);
       //   throw new Error(`Verifying function failed: ${funcName}`);
     } else {
-      console.log(`${'\x1b[34m'}${tsFunc.name}: SUCCESS${'\x1b[0m'}`);
+      console.log(`${"\x1b[34m"}${tsFunc.name}: SUCCESS${"\x1b[0m"}`);
     }
   }
 
@@ -200,7 +224,7 @@ class Compiler {
     handler(node);
   }
 
-  private genExpr(node: ts.Expression): Value<any>|TsFunction|null {
+  private genExpr(node: ts.Expression): Value<any> | TsFunction | null {
     const handler = this.expressions[node.kind];
     if (!handler) {
       throw new Error(`unknown expression: ${ts.SyntaxKind[node.kind]}`);
@@ -217,5 +241,5 @@ function isExported(node: ts.Node): boolean {
   if (!node.modifiers) {
     return false;
   }
-  return node.modifiers.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword);
+  return node.modifiers.some((mod) => mod.kind === ts.SyntaxKind.ExportKeyword);
 }

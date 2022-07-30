@@ -4,15 +4,17 @@ import { Type, Value } from "../../types/base";
 import { TsFunction } from "../func";
 import { tsToGTypeUnboxed } from "../types";
 
-export type ExprHandler<E extends ts.Expression> = (st: E) => Value<any>|TsFunction|null;
+export type ExprHandler<E extends ts.Expression> = (
+  st: E
+) => Value<any> | TsFunction | null;
 
 export type ExprHandlers = {
   [K in ts.SyntaxKind]?: ExprHandler<any>;
-}
+};
 
 type ExprFactories = {
   [K in ts.SyntaxKind]?: (context: CompilerContext) => ExprHandler<any>;
-}
+};
 
 export function expressions(context: CompilerContext): ExprHandlers {
   const factories: ExprFactories = {
@@ -23,22 +25,22 @@ export function expressions(context: CompilerContext): ExprHandlers {
     [ts.SyntaxKind.BinaryExpression]: binaryExpressionFactory,
   };
   return Object.fromEntries(
-    Object.entries(factories).map(
-      ([kind, factory]) => [kind, factory(context)]
-    )
+    Object.entries(factories).map(([kind, factory]) => [kind, factory(context)])
   );
 }
 
 function callFactory(context: CompilerContext) {
-  const {instr, genExpr} = context;
+  const { instr, genExpr } = context;
   return (node: ts.CallExpression) => {
     const expr = node.expression;
 
     // console.log pragma
-    if (ts.isPropertyAccessExpression(expr) &&
+    if (
+      ts.isPropertyAccessExpression(expr) &&
       ts.isIdentifier(expr.expression) &&
-      expr.expression.text === 'console' &&
-      expr.name.text === 'log') {
+      expr.expression.text === "console" &&
+      expr.name.text === "log"
+    ) {
       consoleLog(context, node);
       return null;
     }
@@ -49,12 +51,12 @@ function callFactory(context: CompilerContext) {
     }
 
     if (funcRef instanceof TsFunction) {
-      const {func} = funcRef;
+      const { func } = funcRef;
       const args = func.type.args.map((type, index) => {
         const arg = node.arguments[index];
         const value = arg ? genExpr(arg) : null;
         if (!(value instanceof Value<any>)) {
-          throw new Error('cannot use the arg');
+          throw new Error("cannot use the arg");
         }
         return instr.strictConvert(value, type);
       });
@@ -66,12 +68,12 @@ function callFactory(context: CompilerContext) {
 }
 
 function consoleLog(context: CompilerContext, node: ts.CallExpression) {
-  const {debug, genExpr} = context;
-  let fmt = '';
+  const { debug, genExpr } = context;
+  let fmt = "";
   const args: Value<any>[] = [];
   for (const arg of node.arguments) {
     if (fmt.length > 0) {
-      fmt += ' ';
+      fmt += " ";
     }
     if (ts.isStringLiteral(arg)) {
       fmt += arg.text;
@@ -80,11 +82,11 @@ function consoleLog(context: CompilerContext, node: ts.CallExpression) {
       // correct mask.
       const value = genExpr(arg);
       if (value == null) {
-        fmt += 'null';
+        fmt += "null";
       } else if (value instanceof TsFunction) {
         fmt += `<function ${value.name}>`;
       } else {
-        fmt += '%s';
+        fmt += "%s";
         args.push(debug.debugValue(value));
       }
     }
@@ -94,7 +96,7 @@ function consoleLog(context: CompilerContext, node: ts.CallExpression) {
 }
 
 function identifierFactory(context: CompilerContext) {
-  const {checker, declFunction, ref, instr} = context;
+  const { checker, declFunction, ref, instr } = context;
   return (node: ts.Identifier) => {
     const idName = node.text;
     const symbol = checker.getSymbolAtLocation(node);
@@ -117,39 +119,41 @@ function identifierFactory(context: CompilerContext) {
   };
 }
 
-function nullFactory({jslib}: CompilerContext) {
+function nullFactory({ jslib }: CompilerContext) {
   return () => {
     return jslib.values.jsNull;
   };
 }
 
 function numericLiteralFactory(context: CompilerContext) {
-  const {types, instr, checker} = context;
+  const { types, instr, checker } = context;
   return (node: ts.NumericLiteral) => {
     // TODO: type (llvm.ConstantFP.get(builder.getFloatTy(), 1.4))
     const num = types.i32.constValue(parseInt(node.text, 10));
     return num;
-  }
+  };
 }
 
-function binaryExpressionFactory({jslib, genExpr}: CompilerContext) {
+function binaryExpressionFactory({ jslib, genExpr }: CompilerContext) {
   return (node: ts.BinaryExpression) => {
     const left = genExpr(node.left);
     const right = genExpr(node.right);
     if (!(left instanceof Value<any>)) {
-      throw new Error('cannot use value for binary expression');
+      throw new Error("cannot use value for binary expression");
     }
     if (!(right instanceof Value<any>)) {
-      throw new Error('cannot use value for binary expression');
+      throw new Error("cannot use value for binary expression");
     }
     const op = node.operatorToken;
     if (op.kind === ts.SyntaxKind.PlusToken) {
       // TODO: better name: var name, etc?
-      return jslib.add('add_res', left, right);
+      return jslib.add("add_res", left, right);
     }
     if (op.kind === ts.SyntaxKind.EqualsEqualsEqualsToken) {
-      return jslib.strictEq('stricteq', left, right);
+      return jslib.strictEq("stricteq", left, right);
     }
-    throw new Error(`unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`);
+    throw new Error(
+      `unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`
+    );
   };
 }

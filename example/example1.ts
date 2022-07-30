@@ -1,6 +1,5 @@
-
-export function test1(test: number|string|null): number|undefined {
-  if (typeof test === 'number') {
+export function test1(test: number | string | null): number | undefined {
+  if (typeof test === "number") {
     const testString = test ** 2;
     return testString;
   }

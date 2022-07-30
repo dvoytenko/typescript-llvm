@@ -1,12 +1,11 @@
-import llvm from 'llvm-bindings';
+import llvm from "llvm-bindings";
 
 type IntBits = 8 | 16 | 32 | 64;
 
 export class Type {
-
   constructor(
     public readonly context: llvm.LLVMContext,
-    public readonly llType: llvm.Type,
+    public readonly llType: llvm.Type
   ) {}
 
   isA<T extends Type>(other: T): this is T {
@@ -14,17 +13,19 @@ export class Type {
   }
 
   isBoxed(): this is BoxedType<any> {
-    return typeof (this as unknown as BoxedType<any>).loadUnboxed === 'function';
+    return (
+      typeof (this as unknown as BoxedType<any>).loadUnboxed === "function"
+    );
   }
 
   isPointer(): this is PointerType<any> {
     return false;
   }
 
-  isPointerTo<T extends Type>(type: T | (new() => T)): this is PointerType<T> {
+  isPointerTo<T extends Type>(type: T | (new () => T)): this is PointerType<T> {
     return false;
   }
-  
+
   pointerOf(): PointerType<typeof this> {
     return new PointerType(this.context, this);
   }
@@ -34,7 +35,7 @@ export class Type {
   }
 
   get typeName(): string {
-    return this.constructor.name.toLowerCase().replace('type', '');
+    return this.constructor.name.toLowerCase().replace("type", "");
   }
 
   sizeof(builder: llvm.IRBuilder): Value<I64Type> {
@@ -43,9 +44,7 @@ export class Type {
     const gep = builder.CreateGEP(
       this.llType,
       llvm.Constant.getNullValue(arrayType),
-      [
-        builder.getInt32(1),
-      ],
+      [builder.getInt32(1)],
       `${this.typeName}_sizeof_ptr`
     );
     const intVal = builder.CreatePtrToInt(
@@ -64,14 +63,15 @@ export class Type {
 export interface BoxedType<BT extends Type> {
   unboxedType: BT;
   loadUnboxed(builder: llvm.IRBuilder, ptr: Pointer<typeof this>): Value<BT>;
-  storeBoxed(builder: llvm.IRBuilder, ptr: Pointer<typeof this>, value: Value<BT>);
+  storeBoxed(
+    builder: llvm.IRBuilder,
+    ptr: Pointer<typeof this>,
+    value: Value<BT>
+  );
 }
 
 export class Value<T extends Type> {
-  constructor(
-    public type: T,
-    public llValue: llvm.Value
-  ) {}
+  constructor(public type: T, public llValue: llvm.Value) {}
 
   isA<T extends Type>(other: T): this is Value<T> {
     return this.type.isA(other);
@@ -79,9 +79,9 @@ export class Value<T extends Type> {
 
   isPointer(): this is Pointer<any> {
     return this.type.isPointer();
-  }  
+  }
 
-  isPointerTo<T extends Type>(type: T | (new() => T)): this is Pointer<T> {
+  isPointerTo<T extends Type>(type: T | (new () => T)): this is Pointer<T> {
     return this.type.isPointerTo(type);
   }
 }
@@ -92,13 +92,8 @@ export class PointerType<T extends Type> extends Type {
     return new PointerType<T>(type.context, type);
   }
 
-  constructor(
-    context: llvm.LLVMContext,
-    public readonly toType: T) {
-    super(
-      context,
-      llvm.PointerType.get(toType.llType, 0)
-    );
+  constructor(context: llvm.LLVMContext, public readonly toType: T) {
+    super(context, llvm.PointerType.get(toType.llType, 0));
   }
 
   override get typeName(): string {
@@ -116,8 +111,10 @@ export class PointerType<T extends Type> extends Type {
     return true;
   }
 
-  override isPointerTo<T extends Type>(type: T | (new() => T)): this is PointerType<T> {
-    if (typeof type === 'function') {
+  override isPointerTo<T extends Type>(
+    type: T | (new () => T)
+  ): this is PointerType<T> {
+    if (typeof type === "function") {
       return this.toType instanceof type;
     }
     return this.toType.isA(type);
@@ -135,14 +132,8 @@ export class Pointer<T extends Type> extends Value<PointerType<T>> {
 }
 
 export class IntType<B extends IntBits> extends Type {
-  constructor(
-    context: llvm.LLVMContext,
-    public readonly bits: B
-    ) {
-    super(
-      context,
-      llvm.IntegerType.get(context, bits)
-    );
+  constructor(context: llvm.LLVMContext, public readonly bits: B) {
+    super(context, llvm.IntegerType.get(context, bits));
   }
 
   constValue(v: number): Value<typeof this> {

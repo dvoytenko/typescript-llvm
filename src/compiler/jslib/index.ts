@@ -1,19 +1,27 @@
-import llvm from 'llvm-bindings';
-import { Debug } from '../debug';
-import { Instr } from '../instr';
-import { Function } from '../instr/func';
-import { Types } from '../types';
-import { I32Type, IntType, Pointer, PointerType, Value } from '../types/base';
-import { BoolType } from '../types/bool';
-import { JsNullType } from '../types/jsnull';
-import { JsNumberType } from '../types/jsnumber';
-import { JsType, JsUnknownType, JsUnknownType2, JsValueType } from '../types/jsvalue';
+import llvm from "llvm-bindings";
+import { Debug } from "../debug";
+import { Instr } from "../instr";
+import { Function } from "../instr/func";
+import { Types } from "../types";
+import { I32Type, IntType, Pointer, PointerType, Value } from "../types/base";
+import { BoolType } from "../types/bool";
+import { JsNullType } from "../types/jsnull";
+import { JsNumberType } from "../types/jsnumber";
+import {
+  JsType,
+  JsUnknownType,
+  JsUnknownType2,
+  JsValueType,
+} from "../types/jsvalue";
 
 interface JslibValues {
-  jsNull: Pointer<JsNullType>,
+  jsNull: Pointer<JsNullType>;
 }
 
-type AddAnyArgs = [a: PointerType<JsUnknownType2>, b: PointerType<JsUnknownType2>];
+type AddAnyArgs = [
+  a: PointerType<JsUnknownType2>,
+  b: PointerType<JsUnknownType2>
+];
 
 interface JslibFunctions {
   addAny: Function<PointerType<JsUnknownType2>, AddAnyArgs>;
@@ -22,7 +30,11 @@ interface JslibFunctions {
 
 interface AddInstr {
   (name: string, a: Value<I32Type>, b: Value<I32Type>): Value<I32Type>;
-  (name: string, a: Pointer<JsNumberType>, b: Pointer<JsNumberType>): Pointer<JsNumberType>;
+  (
+    name: string,
+    a: Pointer<JsNumberType>,
+    b: Pointer<JsNumberType>
+  ): Pointer<JsNumberType>;
   (name: string, a: Value<any>, b: Value<any>): Pointer<JsUnknownType>;
 }
 
@@ -31,8 +43,8 @@ interface StrictEqInstr {
 }
 
 export interface Jslib {
-  values: JslibValues,
-  funcs: JslibFunctions,
+  values: JslibValues;
+  funcs: JslibFunctions;
   add: AddInstr;
   strictEq: StrictEqInstr;
 }
@@ -46,7 +58,10 @@ export interface Gen {
 export function jslibFactory(gen: Gen): Jslib {
   const i32 = gen.types.i32;
   const values: JslibValues = {
-    jsNull: gen.instr.globalConstVar("jsnull", gen.types.jsNull.createConst({jsType: i32.constValue(JsType.NULL)})).ptr,
+    jsNull: gen.instr.globalConstVar(
+      "jsnull",
+      gen.types.jsNull.createConst({ jsType: i32.constValue(JsType.NULL) })
+    ).ptr,
   };
   const funcs: JslibFunctions = {
     addAny: addAnyFunctionFactory(gen, values),
@@ -60,16 +75,22 @@ export function jslibFactory(gen: Gen): Jslib {
   };
 }
 
-function addFactory({instr, types, debug}: Gen, values: JslibValues, funcs: JslibFunctions): AddInstr {
-  const {i32, jsNumber, jsValue} = types;
+function addFactory(
+  { instr, types, debug }: Gen,
+  values: JslibValues,
+  funcs: JslibFunctions
+): AddInstr {
+  const { i32, jsNumber, jsValue } = types;
   const jsNumberPtr = jsNumber.pointerOf();
   const jsValuePtr = jsValue.pointerOf();
   return (name: string, a: Value<any>, b: Value<any>): Value<any> => {
     // TODO: the rules are incomplete and mostly wrong.
 
     // Both values are numeric: the result is numeric.
-    if ((a.isA(i32) || a.isA(jsNumberPtr)) &&
-        (b.isA(i32) || b.isA(jsNumberPtr))) {
+    if (
+      (a.isA(i32) || a.isA(jsNumberPtr)) &&
+      (b.isA(i32) || b.isA(jsNumberPtr))
+    ) {
       const numA = a.isA(i32) ? a : instr.loadUnboxed(a);
       const numB = b.isA(i32) ? b : instr.loadUnboxed(b);
       const numRes = instr.add(`${name}_sum`, numA, numB);
@@ -88,7 +109,10 @@ function addFactory({instr, types, debug}: Gen, values: JslibValues, funcs: Jsli
   };
 }
 
-function addAnyFunctionFactory({instr, types, debug}: Gen, values: JslibValues) {
+function addAnyFunctionFactory(
+  { instr, types, debug }: Gen,
+  values: JslibValues
+) {
   const { i32, jsValue, jsNumber } = types;
   const jsValuePtr = jsValue.pointerOf();
   const jsNumberPtr = jsNumber.pointerOf();
@@ -101,7 +125,7 @@ function addAnyFunctionFactory({instr, types, debug}: Gen, values: JslibValues) 
   );
   const func = instr.func("jslib/add", funcType);
 
-  instr.insertPoint(instr.block(func, 'entry'));
+  instr.insertPoint(instr.block(func, "entry"));
 
   const uptrA = func.args[0];
   const uptrB = func.args[1];
@@ -111,12 +135,20 @@ function addAnyFunctionFactory({instr, types, debug}: Gen, values: JslibValues) 
   const jsTypeB = uptrA.type.toType.loadJsType(instr.builder, uptrB);
   // debug.printf('ADD: TYPES: %d %d', [jsTypeA, jsTypeB]);
 
-  const isNumA = instr.icmpEq('is_num_a', jsTypeA, i32.constValue(JsType.NUMBER));
-  const isNumB = instr.icmpEq('is_num_b', jsTypeB, i32.constValue(JsType.NUMBER));
+  const isNumA = instr.icmpEq(
+    "is_num_a",
+    jsTypeA,
+    i32.constValue(JsType.NUMBER)
+  );
+  const isNumB = instr.icmpEq(
+    "is_num_b",
+    jsTypeB,
+    i32.constValue(JsType.NUMBER)
+  );
 
-  const num1Block = instr.block(func, 'num1');
-  const num2Block = instr.block(func, 'num2');
-  const unkBlock = instr.block(func, 'unk');
+  const num1Block = instr.block(func, "num1");
+  const num2Block = instr.block(func, "num2");
+  const unkBlock = instr.block(func, "unk");
 
   instr.condBr(isNumA, num1Block, unkBlock);
 
@@ -125,30 +157,34 @@ function addAnyFunctionFactory({instr, types, debug}: Gen, values: JslibValues) 
 
   instr.insertPoint(num2Block);
 
-  const ptrA = instr.cast('jsn_a', uptrA, jsNumber);
-  const ptrB = instr.cast('jsn_b', uptrB, jsNumber);
+  const ptrA = instr.cast("jsn_a", uptrA, jsNumber);
+  const ptrB = instr.cast("jsn_b", uptrB, jsNumber);
 
   const unboxedA = instr.loadUnboxed(ptrA);
   const unboxedB = instr.loadUnboxed(ptrB);
 
-  const computedSum = instr.add('sum', unboxedA, unboxedB);
+  const computedSum = instr.add("sum", unboxedA, unboxedB);
 
-  const ptrSum = instr.malloc('jsn_sum', types.jsNumber);
+  const ptrSum = instr.malloc("jsn_sum", types.jsNumber);
   instr.storeBoxed(ptrSum, computedSum);
 
-  instr.ret(func, instr.cast('sum_jsv', ptrSum, jsValue));
+  instr.ret(func, instr.cast("sum_jsv", ptrSum, jsValue));
 
   instr.insertPoint(unkBlock);
 
   // TODO: string, other types, toPrimitive, undefined.
   // debug.printf('ADD: RETURN NULL BY DEFAULT', []);
-  instr.ret(func, instr.cast('jsv_null', values.jsNull, jsValue));
+  instr.ret(func, instr.cast("jsv_null", values.jsNull, jsValue));
 
   return func;
 }
 
-function strictEqFactory({instr, types, debug}: Gen, values: JslibValues, funcs: JslibFunctions): StrictEqInstr {
-  const {i32, bool, jsNull, jsNumber, jsValue} = types;
+function strictEqFactory(
+  { instr, types, debug }: Gen,
+  values: JslibValues,
+  funcs: JslibFunctions
+): StrictEqInstr {
+  const { i32, bool, jsNull, jsNumber, jsValue } = types;
   const jsNullPtr = jsNull.pointerOf();
   const jsNumberPtr = jsNumber.pointerOf();
   const jsValuePtr = jsValue.pointerOf();
@@ -166,14 +202,20 @@ function strictEqFactory({instr, types, debug}: Gen, values: JslibValues, funcs:
       // debug.printf('ONE NULL', []);
       const other = instr.strictConvert(a.isA(jsNullPtr) ? b : a, jsValuePtr);
       const otherJsType = other.type.toType.loadJsType(instr.builder, other);
-      const qqqq = instr.icmpEq(name, otherJsType, i32.constValue(jsNull.jsType));
+      const qqqq = instr.icmpEq(
+        name,
+        otherJsType,
+        i32.constValue(jsNull.jsType)
+      );
       // debug.printf('ONE NULL: %d', [qqqq]);
       return qqqq;
     }
 
     // Both values are numeric: compare numbers.
-    if ((a.isA(i32) || a.isA(jsNumberPtr)) &&
-        (b.isA(i32) || b.isA(jsNumberPtr))) {
+    if (
+      (a.isA(i32) || a.isA(jsNumberPtr)) &&
+      (b.isA(i32) || b.isA(jsNumberPtr))
+    ) {
       // debug.printf('BOTH NUM', []);
       const numA = a.isA(i32) ? a : instr.loadUnboxed(a);
       const numB = b.isA(i32) ? b : instr.loadUnboxed(b);
@@ -188,20 +230,20 @@ function strictEqFactory({instr, types, debug}: Gen, values: JslibValues, funcs:
   };
 }
 
-function strictEqAnyFunctionFactory({instr, types, debug}: Gen, values: JslibValues) {
+function strictEqAnyFunctionFactory(
+  { instr, types, debug }: Gen,
+  values: JslibValues
+) {
   const { bool, i32, jsValue, jsNumber } = types;
   const jsValuePtr = jsValue.pointerOf();
   const jsNumberPtr = jsNumber.pointerOf();
-  const funcType = types.func<BoolType, AddAnyArgs>(
-    bool,
-    [
-      jsValuePtr as PointerType<JsUnknownType2>,
-      jsValuePtr as PointerType<JsUnknownType2>,
-    ]
-  );
+  const funcType = types.func<BoolType, AddAnyArgs>(bool, [
+    jsValuePtr as PointerType<JsUnknownType2>,
+    jsValuePtr as PointerType<JsUnknownType2>,
+  ]);
   const func = instr.func("jslib/stricteq", funcType);
 
-  instr.insertPoint(instr.block(func, 'entry'));
+  instr.insertPoint(instr.block(func, "entry"));
 
   const uptrA = func.args[0];
   const uptrB = func.args[1];
@@ -210,10 +252,10 @@ function strictEqAnyFunctionFactory({instr, types, debug}: Gen, values: JslibVal
   const jsTypeA = uptrA.type.toType.loadJsType(instr.builder, uptrA);
   const jsTypeB = uptrA.type.toType.loadJsType(instr.builder, uptrB);
 
-  const isSameJsType = instr.icmpEq('is_same_jstype', jsTypeA, jsTypeB);
+  const isSameJsType = instr.icmpEq("is_same_jstype", jsTypeA, jsTypeB);
 
-  const falseBlock = instr.block(func, 'false');
-  const sameJsTypeBlock = instr.block(func, 'same_jstype');
+  const falseBlock = instr.block(func, "false");
+  const sameJsTypeBlock = instr.block(func, "same_jstype");
 
   instr.condBr(isSameJsType, sameJsTypeBlock, falseBlock);
 

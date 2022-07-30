@@ -1,9 +1,9 @@
-import llvm from 'llvm-bindings';
-import {Pointer, Type, Value} from './base';
+import llvm from "llvm-bindings";
+import { Pointer, Type, Value } from "./base";
 
 export type FunctionArgValues<Args extends Type[]> = {
   [index in keyof Args]: Value<Args[index]>;
-}
+};
 
 /*QQQQ
 type Fun5Args = [a: StrType, b: NumType, c: NumType];
@@ -26,17 +26,20 @@ function funType3<>(args: [...Args]): FunType2<Args> {
 }
 */
 
-export class FunctionType<Ret extends Type, Args extends [...Type[]]> extends Type {
+export class FunctionType<
+  Ret extends Type,
+  Args extends [...Type[]]
+> extends Type {
   constructor(
     context: llvm.LLVMContext,
     public readonly retType: Ret,
-    public readonly args: Args,
-    ) {
+    public readonly args: Args
+  ) {
     super(
       context,
       llvm.FunctionType.get(
         retType.llType,
-        args.map(arg => arg.llType),
+        args.map((arg) => arg.llType),
         false
       )
     );

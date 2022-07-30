@@ -1,12 +1,9 @@
-import llvm from 'llvm-bindings';
-import {Type, Value} from './base';
+import llvm from "llvm-bindings";
+import { Type, Value } from "./base";
 
 export class BoolType extends Type {
   constructor(context: llvm.LLVMContext) {
-    super(
-      context,
-      llvm.IntegerType.get(context, 1)
-    );
+    super(context, llvm.IntegerType.get(context, 1));
   }
 
   constValue(v: boolean): Value<typeof this> {

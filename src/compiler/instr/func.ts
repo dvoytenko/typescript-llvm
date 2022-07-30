@@ -1,6 +1,6 @@
-import llvm from 'llvm-bindings';
-import { Type, Value } from '../types/base';
-import { FunctionArgValues, FunctionType } from '../types/func';
+import llvm from "llvm-bindings";
+import { Type, Value } from "../types/base";
+import { FunctionArgValues, FunctionType } from "../types/func";
 
 export class Function<Ret extends Type, Args extends [...Type[]]> {
   public readonly llFunc: llvm.Function;
@@ -10,7 +10,7 @@ export class Function<Ret extends Type, Args extends [...Type[]]> {
     module: llvm.Module,
     public readonly name: string,
     public readonly type: FunctionType<Ret, Args>
-    ) {
+  ) {
     this.llFunc = llvm.Function.Create(
       type.llType,
       llvm.Function.LinkageTypes.ExternalLinkage,

@@ -1,5 +1,9 @@
-import ts, { FunctionDeclaration, ParameterDeclaration, PropertyAssignment } from "typescript";
-import llvm, { PointerType } from 'llvm-bindings';
+import ts, {
+  FunctionDeclaration,
+  ParameterDeclaration,
+  PropertyAssignment,
+} from "typescript";
+import llvm, { PointerType } from "llvm-bindings";
 
 const options: ts.CompilerOptions = {
   target: ts.ScriptTarget.Latest,
@@ -21,7 +25,7 @@ enum Type {
   OBJECT = 3,
 }
 
-type Shape = Array<{name: string; type: string}>;
+type Shape = Array<{ name: string; type: string }>;
 
 interface IfcType {
   id: number;
@@ -31,7 +35,7 @@ interface IfcType {
 const propStartIndex = 1; // after vtable
 
 export function compile(file: string) {
-  console.log('COMPILE: ', file);
+  console.log("COMPILE: ", file);
   const compiler = new Compiler([file]);
   return compiler.compile();
   // compiler.debug();
@@ -67,7 +71,10 @@ class Compiler {
   private structVtables: Map<string, llvm.Value> = new Map();
   private ifcTypes: Map<string, IfcType> = new Map();
   private baseObjType: llvm.StructType;
-  private collectVtable: Map<string, Array<{id: number, itable: llvm.Constant}>> = new Map();
+  private collectVtable: Map<
+    string,
+    Array<{ id: number; itable: llvm.Constant }>
+  > = new Map();
   private ifcIdCounter: number = 0;
 
   constructor(files: string[]) {
@@ -88,17 +95,17 @@ class Compiler {
     this.genTopLevel();
     this.genComplete();
 
-    console.log('');
-    console.log('IR:');
+    console.log("");
+    console.log("IR:");
     console.log(this.module.print());
     return this.module.print();
   }
 
   genComplete() {
-    console.log('ITABLES: ', this.collectVtable);
+    console.log("ITABLES: ", this.collectVtable);
     for (const [key, list] of this.collectVtable.entries()) {
       const vtable = this.structVtables.get(key)!;
-      const itables = list.map(({itable}) => itable);
+      const itables = list.map(({ itable }) => itable);
 
       // TODO: just reinitialize the itable_array const.
       const itableArrayType = llvm.ArrayType.get(
@@ -110,26 +117,20 @@ class Compiler {
         /* type */ itableArrayType,
         /* isConstant */ true,
         /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
-        /* initializer */ llvm.ConstantArray.get(
-          itableArrayType,
-          itables
-        ),
+        /* initializer */ llvm.ConstantArray.get(itableArrayType, itables),
         `itable_array<${key}>_upd`
       );
 
       (vtable as llvm.GlobalVariable).setInitializer(
-        llvm.ConstantStruct.get(
-          this.vtableType,
-          [
-            // itable_length
-            this.builder.getInt32(itables.length),
-            // itable**
-            this.builder.CreateBitCast(
-              itableArray,
-              llvm.PointerType.get(llvm.PointerType.get(this.itableType, 0), 0)
-            ) as llvm.Constant,
-          ]
-        )
+        llvm.ConstantStruct.get(this.vtableType, [
+          // itable_length
+          this.builder.getInt32(itables.length),
+          // itable**
+          this.builder.CreateBitCast(
+            itableArray,
+            llvm.PointerType.get(llvm.PointerType.get(this.itableType, 0), 0)
+          ) as llvm.Constant,
+        ])
       );
     }
   }
@@ -155,7 +156,7 @@ class Compiler {
 
   genTopLevel() {
     this.context = new llvm.LLVMContext();
-    this.module = new llvm.Module('demo', this.context);
+    this.module = new llvm.Module("demo", this.context);
     this.builder = new llvm.IRBuilder(this.context);
 
     // native lib
@@ -165,7 +166,8 @@ class Compiler {
       const functionType = llvm.FunctionType.get(
         this.builder.getInt8PtrTy(),
         [this.builder.getInt64Ty()],
-        false);
+        false
+      );
       const func = llvm.Function.Create(
         functionType,
         llvm.Function.LinkageTypes.ExternalLinkage,
@@ -201,80 +203,65 @@ class Compiler {
         /* type */ boxType,
         /* isConstant */ true,
         /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
-        /* initializer */ llvm.ConstantStruct.get(
-          boxType,
-          [
-            this.builder.getInt32(Type.UNDEFINED),
-            this.builder.getInt32(0),
-            null_itable,
-            null_obj,
-          ]
-        ),
-        'box_undefined'
+        /* initializer */ llvm.ConstantStruct.get(boxType, [
+          this.builder.getInt32(Type.UNDEFINED),
+          this.builder.getInt32(0),
+          null_itable,
+          null_obj,
+        ]),
+        "box_undefined"
       );
       this.nullBox = new llvm.GlobalVariable(
         this.module,
         /* type */ boxType,
         /* isConstant */ true,
         /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
-        /* initializer */ llvm.ConstantStruct.get(
-          boxType,
-          [
-            this.builder.getInt32(Type.NULL),
-            this.builder.getInt32(0),
-            null_itable,
-            null_obj,
-          ]
-        ),
-        'box_null'
+        /* initializer */ llvm.ConstantStruct.get(boxType, [
+          this.builder.getInt32(Type.NULL),
+          this.builder.getInt32(0),
+          null_itable,
+          null_obj,
+        ]),
+        "box_null"
       );
       this.zeroBox = new llvm.GlobalVariable(
         this.module,
         /* type */ boxType,
         /* isConstant */ true,
         /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
-        /* initializer */ llvm.ConstantStruct.get(
-          boxType,
-          [
-            this.builder.getInt32(Type.NUMBER),
-            this.builder.getInt32(0),
-            null_itable,
-            null_obj,
-          ]
-        ),
-        'box_zero'
+        /* initializer */ llvm.ConstantStruct.get(boxType, [
+          this.builder.getInt32(Type.NUMBER),
+          this.builder.getInt32(0),
+          null_itable,
+          null_obj,
+        ]),
+        "box_zero"
       );
       this.oneBox = new llvm.GlobalVariable(
         this.module,
         /* type */ boxType,
         /* isConstant */ true,
         /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
-        /* initializer */ llvm.ConstantStruct.get(
-          boxType,
-          [
-            this.builder.getInt32(Type.NUMBER),
-            this.builder.getInt32(1),
-            null_itable,
-            null_obj,
-          ]
-        ),
-        'box_one'
+        /* initializer */ llvm.ConstantStruct.get(boxType, [
+          this.builder.getInt32(Type.NUMBER),
+          this.builder.getInt32(1),
+          null_itable,
+          null_obj,
+        ]),
+        "box_one"
       );
       this.minusOneBox = new llvm.GlobalVariable(
         this.module,
         /* type */ boxType,
         /* isConstant */ true,
         /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
-        /* initializer */ llvm.ConstantStruct.get(
-          boxType,
-          [
-            this.builder.getInt32(Type.NUMBER),
-            this.builder.getInt32(-1),
-            null_itable,
-            null_obj,
-          ]
-        ),
-        'box_minus_one'
+        /* initializer */ llvm.ConstantStruct.get(boxType, [
+          this.builder.getInt32(Type.NUMBER),
+          this.builder.getInt32(-1),
+          null_itable,
+          null_obj,
+        ]),
+        "box_minus_one"
       );
     })();
 
@@ -293,7 +280,7 @@ class Compiler {
       );
       this.itableType = itableType;
       this.libStructs.set("Itable", itableType);
-      
+
       // vtable {i32 itable_len, itable* array}
       const vtableType = llvm.StructType.create(
         this.context,
@@ -310,10 +297,8 @@ class Compiler {
 
       const baseObjType = llvm.StructType.create(
         this.context,
-        [
-          llvm.PointerType.get(this.vtableType, 0),
-        ],
-        'Obj'
+        [llvm.PointerType.get(this.vtableType, 0)],
+        "Obj"
       );
       this.baseObjType = baseObjType;
       this.libStructs.set("Obj", baseObjType);
@@ -323,11 +308,9 @@ class Compiler {
         const functionType = llvm.FunctionType.get(
           // itable*
           llvm.PointerType.get(itableType, 0),
-          [
-            llvm.PointerType.get(vtableType, 0),
-            this.builder.getInt32Ty(),
-          ],
-          false);
+          [llvm.PointerType.get(vtableType, 0), this.builder.getInt32Ty()],
+          false
+        );
         const func = llvm.Function.Create(
           functionType,
           llvm.Function.LinkageTypes.ExternalLinkage,
@@ -341,7 +324,7 @@ class Compiler {
         const vtable_ptr = func.getArg(0);
         const ifc_id = func.getArg(1);
 
-        const entryBB = llvm.BasicBlock.Create(this.context, 'entry', func);
+        const entryBB = llvm.BasicBlock.Create(this.context, "entry", func);
         this.builder.SetInsertPoint(entryBB);
 
         const retval = this.builder.CreateAlloca(
@@ -356,34 +339,38 @@ class Compiler {
 
         const len = this.builder.CreateLoad(
           this.builder.getInt32Ty(),
-          this.builder.CreateGEP(
-            vtableType,
-            vtable_ptr,
-            [
-              this.builder.getInt32(0),
-              this.builder.getInt32(0),
-            ]
-          ),
+          this.builder.CreateGEP(vtableType, vtable_ptr, [
+            this.builder.getInt32(0),
+            this.builder.getInt32(0),
+          ]),
           "len"
         );
         const itable_array_ptr = this.builder.CreateLoad(
           llvm.PointerType.get(llvm.PointerType.get(itableType, 0), 0),
-          this.builder.CreateGEP(
-            vtableType,
-            vtable_ptr,
-            [
-              this.builder.getInt32(0),
-              this.builder.getInt32(1),
-            ]
-          ),
+          this.builder.CreateGEP(vtableType, vtable_ptr, [
+            this.builder.getInt32(0),
+            this.builder.getInt32(1),
+          ]),
           "itable_array_ptr"
         );
 
-        const forStartBB = llvm.BasicBlock.Create(this.context, 'for.start', func);
-        const forBodyBB = llvm.BasicBlock.Create(this.context, 'for.body', func);
-        const forFoundBB = llvm.BasicBlock.Create(this.context, 'for.found', func);
-        const forIncBB = llvm.BasicBlock.Create(this.context, 'for.inc', func);
-        const forEndBB = llvm.BasicBlock.Create(this.context, 'for.end', func);
+        const forStartBB = llvm.BasicBlock.Create(
+          this.context,
+          "for.start",
+          func
+        );
+        const forBodyBB = llvm.BasicBlock.Create(
+          this.context,
+          "for.body",
+          func
+        );
+        const forFoundBB = llvm.BasicBlock.Create(
+          this.context,
+          "for.found",
+          func
+        );
+        const forIncBB = llvm.BasicBlock.Create(this.context, "for.inc", func);
+        const forEndBB = llvm.BasicBlock.Create(this.context, "for.end", func);
 
         this.builder.CreateBr(forStartBB);
         this.builder.SetInsertPoint(forStartBB);
@@ -396,11 +383,7 @@ class Compiler {
         );
 
         // br i1 %exitcond, label %for.end, label %for.body
-        this.builder.CreateCondBr(
-          already_complete_cond,
-          forEndBB,
-          forBodyBB
-        );
+        this.builder.CreateCondBr(already_complete_cond, forEndBB, forBodyBB);
 
         this.builder.SetInsertPoint(forBodyBB);
 
@@ -411,10 +394,7 @@ class Compiler {
           "index"
         );
         // [ 0, %for.start ]
-        index.addIncoming(
-          this.builder.getInt32(0),
-          forStartBB,
-        );
+        index.addIncoming(this.builder.getInt32(0), forStartBB);
 
         // load itable_ptr
         const itable_ptr = this.builder.CreateLoad(
@@ -422,7 +402,7 @@ class Compiler {
           this.builder.CreateGEP(
             llvm.PointerType.get(itableType, 0),
             itable_array_ptr,
-            [ index ]
+            [index]
           ),
           "itable_ptr"
         );
@@ -430,14 +410,10 @@ class Compiler {
         // load ifc_id
         const itable_ifc_id = this.builder.CreateLoad(
           this.builder.getInt32Ty(),
-          this.builder.CreateGEP(
-            itableType,
-            itable_ptr,
-            [
-              this.builder.getInt32(0),
-              this.builder.getInt32(0),
-            ]
-          ),
+          this.builder.CreateGEP(itableType, itable_ptr, [
+            this.builder.getInt32(0),
+            this.builder.getInt32(0),
+          ]),
           "itable_ifc_id"
         );
 
@@ -449,11 +425,7 @@ class Compiler {
           // this.builder.getInt32(112),
           "found"
         );
-        this.builder.CreateCondBr(
-          found,
-          forFoundBB,
-          forIncBB,
-        );
+        this.builder.CreateCondBr(found, forFoundBB, forIncBB);
 
         this.builder.SetInsertPoint(forFoundBB);
         this.builder.CreateStore(itable_ptr, retval);
@@ -469,24 +441,13 @@ class Compiler {
           "inc"
         );
         // [ %inc, %for.body ]
-        index.addIncoming(
-          inc,
-          forIncBB,
-        );
+        index.addIncoming(inc, forIncBB);
 
         // %exitcond = icmp eq i32 %inc, 10
-        const exitcond = this.builder.CreateICmpEQ(
-          inc,
-          len,
-          "exitcond"
-        );
+        const exitcond = this.builder.CreateICmpEQ(inc, len, "exitcond");
 
         // br i1 %exitcond, label %for.end, label %for.body
-        this.builder.CreateCondBr(
-          exitcond,
-          forEndBB,
-          forBodyBB
-        );
+        this.builder.CreateCondBr(exitcond, forEndBB, forBodyBB);
 
         this.builder.SetInsertPoint(forEndBB);
 
@@ -497,7 +458,6 @@ class Compiler {
         );
         this.builder.CreateRet(ret);
       })();
-  
     })();
 
     // debug lib
@@ -511,7 +471,8 @@ class Compiler {
           this.builder.getInt32Ty(),
           this.builder.getInt8PtrTy(),
         ],
-        true);
+        true
+      );
       const func = llvm.Function.Create(
         functionType,
         llvm.Function.LinkageTypes.ExternalLinkage,
@@ -527,7 +488,8 @@ class Compiler {
       const functionType = llvm.FunctionType.get(
         this.builder.getInt32Ty(),
         [this.builder.getInt8PtrTy()],
-        false);
+        false
+      );
       const func = llvm.Function.Create(
         functionType,
         llvm.Function.LinkageTypes.ExternalLinkage,
@@ -547,7 +509,8 @@ class Compiler {
           llvm.Type.getMetadataTy(this.context),
           llvm.Type.getMetadataTy(this.context),
         ],
-        false);
+        false
+      );
       const func = llvm.Function.Create(
         functionType,
         llvm.Function.LinkageTypes.ExternalLinkage,
@@ -575,7 +538,11 @@ class Compiler {
   private ref(node: ts.Node): llvm.Value {
     const value = this.refs.get(node);
     if (!value) {
-      throw new Error(`ref not found for ${ts.SyntaxKind[node.kind]} ${(node as unknown as FunctionDeclaration).name?.text}`);
+      throw new Error(
+        `ref not found for ${ts.SyntaxKind[node.kind]} ${
+          (node as unknown as FunctionDeclaration).name?.text
+        }`
+      );
     }
     return value;
   }
@@ -596,7 +563,7 @@ class Compiler {
         // TODO: types.
         [
           llvm.PointerType.get(this.vtableType, 0),
-          ...shape.map(prop => this.builder.getInt32Ty()),
+          ...shape.map((prop) => this.builder.getInt32Ty()),
         ],
         key
       );
@@ -609,8 +576,11 @@ class Compiler {
       const autoIfcShape = autoIfcType.shape;
       const autoItable = this.computeItable(
         autoIfcId,
-        key, shape, objType,
-        autoIfcKey, autoIfcShape
+        key,
+        shape,
+        objType,
+        autoIfcKey,
+        autoIfcShape
       );
 
       const itables = [autoItable];
@@ -624,30 +594,24 @@ class Compiler {
         /* type */ itableArrayType,
         /* isConstant */ true,
         /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
-        /* initializer */ llvm.ConstantArray.get(
-          itableArrayType,
-          itables
-        ),
+        /* initializer */ llvm.ConstantArray.get(itableArrayType, itables),
         `itable_array<${key}>`
       );
-  
+
       const vtable = new llvm.GlobalVariable(
         this.module,
         /* type */ this.vtableType,
         /* isConstant */ true,
         /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
-        /* initializer */ llvm.ConstantStruct.get(
-          this.vtableType,
-          [
-            // itable_length
-            this.builder.getInt32(itables.length),
-            // itable**
-            this.builder.CreateBitCast(
-              itableArray,
-              llvm.PointerType.get(llvm.PointerType.get(this.itableType, 0), 0)
-            ) as llvm.Constant,
-          ]
-        ),
+        /* initializer */ llvm.ConstantStruct.get(this.vtableType, [
+          // itable_length
+          this.builder.getInt32(itables.length),
+          // itable**
+          this.builder.CreateBitCast(
+            itableArray,
+            llvm.PointerType.get(llvm.PointerType.get(this.itableType, 0), 0)
+          ) as llvm.Constant,
+        ]),
         `vtable<${key}>`
       );
 
@@ -658,13 +622,21 @@ class Compiler {
     return objType;
   }
 
-  computeItable(id: number, objName: string, obj: Shape, objType: llvm.StructType, ifcName: string, ifc: Shape): llvm.Constant {
-
+  computeItable(
+    id: number,
+    objName: string,
+    obj: Shape,
+    objType: llvm.StructType,
+    ifcName: string,
+    ifc: Shape
+  ): llvm.Constant {
     const name = `itable<${objName}, ${ifcName}>`;
     const arrayName = `itable_array<${objName}, ${ifcName}>`;
 
-    const map = ifc.map(({name}) => obj.findIndex(({name: other}) => name === other));
-    console.log('Map: ', name, map);
+    const map = ifc.map(({ name }) =>
+      obj.findIndex(({ name: other }) => name === other)
+    );
+    console.log("Map: ", name, map);
 
     const null_ptr = llvm.Constant.getNullValue(objType.getPointerTo());
     const itableOffsetsType = llvm.ArrayType.get(this.builder.getInt32Ty(), 2);
@@ -676,18 +648,15 @@ class Compiler {
       /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
       /* initializer */ llvm.ConstantArray.get(
         itableOffsetsType,
-        map.map((index) =>
-          this.builder.CreatePtrToInt(
-            this.builder.CreateGEP(
-              objType,
-              null_ptr,
-              [
+        map.map(
+          (index) =>
+            this.builder.CreatePtrToInt(
+              this.builder.CreateGEP(objType, null_ptr, [
                 this.builder.getInt32(0),
                 this.builder.getInt32(propStartIndex + index),
-              ]
-            ),
-            this.builder.getInt32Ty()
-          ) as llvm.Constant
+              ]),
+              this.builder.getInt32Ty()
+            ) as llvm.Constant
         )
       ),
       arrayName
@@ -698,24 +667,21 @@ class Compiler {
       /* type */ this.itableType,
       /* isConstant */ true,
       /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
-      /* initializer */ llvm.ConstantStruct.get(
-        this.itableType,
-        [
-          // ifc_id
-          this.builder.getInt32(id),
-          // offsets
-          this.builder.CreateBitCast(
-            offsetArray,
-            llvm.PointerType.get(this.builder.getInt32Ty(), 0)
-          ) as llvm.Constant,
-        ]
-      ),
+      /* initializer */ llvm.ConstantStruct.get(this.itableType, [
+        // ifc_id
+        this.builder.getInt32(id),
+        // offsets
+        this.builder.CreateBitCast(
+          offsetArray,
+          llvm.PointerType.get(this.builder.getInt32Ty(), 0)
+        ) as llvm.Constant,
+      ]),
       name
     );
 
     const itables = this.collectVtable.get(objName)!;
     // const id = ++this.ifcIdCounter;
-    itables.push({id, itable});
+    itables.push({ id, itable });
 
     return itable;
   }
@@ -731,8 +697,11 @@ class Compiler {
 
     const itable = this.computeItable(
       ifcId,
-      objName, objShape, llObjType,
-      ifcName, llIfcType.shape
+      objName,
+      objShape,
+      llObjType,
+      ifcName,
+      llIfcType.shape
     );
   }
 
@@ -748,7 +717,7 @@ class Compiler {
         const propTypeStr = this.checker.typeToString(propType);
         shape.push({ name: propName, type: propTypeStr });
       }
-      ifcType = {id, shape};
+      ifcType = { id, shape };
       this.ifcTypes.set(key, ifcType);
     }
     return ifcType;
@@ -764,7 +733,9 @@ class Compiler {
       throw new Error(`not a concrete function: ${funcName}`);
     }
 
-    const returnType = this.checker.getReturnTypeOfSignature(this.checker.getSignatureFromDeclaration(node)!);
+    const returnType = this.checker.getReturnTypeOfSignature(
+      this.checker.getSignatureFromDeclaration(node)!
+    );
     const returnTypeStr = this.checker.typeToString(returnType);
 
     const computeTypeShape = (p: ParameterDeclaration) => {
@@ -780,7 +751,7 @@ class Compiler {
       };
     };
 
-    const args = node.parameters.map(p => ({
+    const args = node.parameters.map((p) => ({
       name: p.name.getText(),
       type: this.checker.typeToString(this.checker.getTypeAtLocation(p)),
       shape: computeTypeShape(p),
@@ -790,23 +761,22 @@ class Compiler {
 
     // TODO: map to actual types. everything below is wrong.
     // TODO: proper `|null` check.
-    const llvmReturnType = returnTypeStr.endsWith('| null') ?
-      this.boxType.getPointerTo() :
-      this.builder.getInt32Ty();
-    const llvmArgs = args.map(arg => {
+    const llvmReturnType = returnTypeStr.endsWith("| null")
+      ? this.boxType.getPointerTo()
+      : this.builder.getInt32Ty();
+    const llvmArgs = args.map((arg) => {
       if (arg.shape) {
         // TODO: can we at least comment on the actual type?
         // return arg.shape.objType.getPointerTo();
         return this.baseObjType.getPointerTo();
       }
-      if (arg.type.endsWith('| null')) {
+      if (arg.type.endsWith("| null")) {
         return this.boxType.getPointerTo();
       }
       return this.builder.getInt32Ty();
     });
 
-    const functionType = llvm.FunctionType.get(
-      llvmReturnType, llvmArgs, false);
+    const functionType = llvm.FunctionType.get(llvmReturnType, llvmArgs, false);
     const func = llvm.Function.Create(
       functionType,
       llvm.Function.LinkageTypes.ExternalLinkage,
@@ -834,13 +804,13 @@ class Compiler {
     }
 
     if (node.body) {
-      const entryBB = llvm.BasicBlock.Create(this.context, 'entry', func);
+      const entryBB = llvm.BasicBlock.Create(this.context, "entry", func);
       this.builder.SetInsertPoint(entryBB);
       // TODO: type
       this.retval = this.builder.CreateAlloca(
-        isBoxPointer(func.getReturnType()) ?
-          this.boxType.getPointerTo() :
-          this.builder.getInt32Ty(),
+        isBoxPointer(func.getReturnType())
+          ? this.boxType.getPointerTo()
+          : this.builder.getInt32Ty(),
         null,
         "retval"
       );
@@ -853,10 +823,11 @@ class Compiler {
       this.genStatement(func, node.body);
 
       const ret = this.builder.CreateLoad(
-        isBoxPointer(func.getReturnType()) ?
-          this.boxType.getPointerTo() :
-          this.builder.getInt32Ty(),
-        this.retval);
+        isBoxPointer(func.getReturnType())
+          ? this.boxType.getPointerTo()
+          : this.builder.getInt32Ty(),
+        this.retval
+      );
       this.builder.CreateRet(ret);
     }
 
@@ -883,19 +854,14 @@ class Compiler {
     } else if (ts.isExpressionStatement(node)) {
       this.genExpr(node.expression);
     } else if (ts.isIfStatement(node)) {
-
       const value = this.genExpr(node.expression);
 
       const trueBlock = llvm.BasicBlock.Create(this.context, undefined, func);
-      const falseBlock = node.elseStatement ?
-        llvm.BasicBlock.Create(this.context, undefined, func) :
-        null;
+      const falseBlock = node.elseStatement
+        ? llvm.BasicBlock.Create(this.context, undefined, func)
+        : null;
       const contBlock = llvm.BasicBlock.Create(this.context, undefined, func);
-      this.builder.CreateCondBr(
-        value,
-        trueBlock,
-        falseBlock ?? contBlock
-      );
+      this.builder.CreateCondBr(value, trueBlock, falseBlock ?? contBlock);
 
       // then:
       this.builder.SetInsertPoint(trueBlock);
@@ -921,16 +887,17 @@ class Compiler {
       const expr = node.expression;
 
       // console.log pragma
-      if (ts.isPropertyAccessExpression(expr) &&
+      if (
+        ts.isPropertyAccessExpression(expr) &&
         ts.isIdentifier(expr.expression) &&
-        expr.expression.text === 'console' &&
-        expr.name.text === 'log') {
-
-        let fmt = '';
+        expr.expression.text === "console" &&
+        expr.name.text === "log"
+      ) {
+        let fmt = "";
         const args: llvm.Value[] = [];
         for (const arg of node.arguments) {
           if (fmt.length > 0) {
-            fmt += ' ';
+            fmt += " ";
           }
           if (ts.isStringLiteral(arg)) {
             fmt += arg.text;
@@ -942,29 +909,21 @@ class Compiler {
               fmt += "box<%d,%d>";
               const t = this.builder.CreateLoad(
                 this.builder.getInt32Ty(),
-                this.builder.CreateGEP(
-                  this.boxType,
-                  value,
-                  [
-                    this.builder.getInt32(0),
-                    this.builder.getInt32(0),
-                  ]
-                )
+                this.builder.CreateGEP(this.boxType, value, [
+                  this.builder.getInt32(0),
+                  this.builder.getInt32(0),
+                ])
               );
               const v = this.builder.CreateLoad(
                 this.builder.getInt32Ty(),
-                this.builder.CreateGEP(
-                  this.boxType,
-                  value,
-                  [
-                    this.builder.getInt32(0),
-                    this.builder.getInt32(1),
-                  ]
-                )
+                this.builder.CreateGEP(this.boxType, value, [
+                  this.builder.getInt32(0),
+                  this.builder.getInt32(1),
+                ])
               );
               args.push(t, v);
             } else {
-              fmt += '%d';
+              fmt += "%d";
               args.push(value);
             }
           }
@@ -977,8 +936,10 @@ class Compiler {
       const funcRef = this.genExpr(expr);
       const args = node.arguments.map((arg, index) => {
         let value = this.genExpr(arg);
-        if (isBoxPointer(funcRef.getArg(index).getType()) &&
-          !isBoxPointer(value.getType())) {
+        if (
+          isBoxPointer(funcRef.getArg(index).getType()) &&
+          !isBoxPointer(value.getType())
+        ) {
           const ptr = this.builder.CreateBitCast(
             this.builder.CreateCall(
               this.malloc,
@@ -988,26 +949,25 @@ class Compiler {
             this.boxType.getPointerTo()
           );
           this.builder.CreateStore(
-            llvm.ConstantStruct.get(
-              this.boxType,
-              [
-                this.builder.getInt32(Type.NUMBER),
-                value,
-              ]
-            ),
+            llvm.ConstantStruct.get(this.boxType, [
+              this.builder.getInt32(Type.NUMBER),
+              value,
+            ]),
             ptr
           );
           value = ptr;
-        } else if (typeName(funcRef.getArg(index).getType()) === 'Obj*') {
+        } else if (typeName(funcRef.getArg(index).getType()) === "Obj*") {
           const sig = this.checker.getResolvedSignature(node)!;
           const argType = this.checker.getTypeAtLocation(arg);
           const sigArgType = this.checker.getTypeOfSymbolAtLocation(
-            sig.parameters[index], node);
+            sig.parameters[index],
+            node
+          );
           this.declIfcForObjType(argType, sigArgType, node);
           value = this.builder.CreateBitCast(
             value,
             this.baseObjType.getPointerTo(),
-            'cast_to_base_obj'
+            "cast_to_base_obj"
           );
         }
         return value;
@@ -1049,33 +1009,28 @@ class Compiler {
       const left = this.genExpr(node.left);
       const right = this.genExpr(node.right);
       const op = node.operatorToken;
-      if (op.kind === ts.SyntaxKind.PlusToken ||
-          op.kind === ts.SyntaxKind.AsteriskToken) {
-        let vLeft = left, vRight = right;
+      if (
+        op.kind === ts.SyntaxKind.PlusToken ||
+        op.kind === ts.SyntaxKind.AsteriskToken
+      ) {
+        let vLeft = left,
+          vRight = right;
         if (isBoxPointer(left.getType())) {
           vLeft = this.builder.CreateLoad(
             this.builder.getInt32Ty(),
-            this.builder.CreateGEP(
-              this.boxType,
-              left,
-              [
-                this.builder.getInt32(0),
-                this.builder.getInt32(1),
-              ]
-            )
+            this.builder.CreateGEP(this.boxType, left, [
+              this.builder.getInt32(0),
+              this.builder.getInt32(1),
+            ])
           );
         }
         if (isBoxPointer(right.getType())) {
           vRight = this.builder.CreateLoad(
             this.builder.getInt32Ty(),
-            this.builder.CreateGEP(
-              this.boxType,
-              right,
-              [
-                this.builder.getInt32(0),
-                this.builder.getInt32(1),
-              ]
-            )
+            this.builder.CreateGEP(this.boxType, right, [
+              this.builder.getInt32(0),
+              this.builder.getInt32(1),
+            ])
           );
         }
 
@@ -1088,12 +1043,15 @@ class Compiler {
             res = this.builder.CreateMul(vLeft, vRight);
             break;
           default:
-            throw new Error(`unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`);
+            throw new Error(
+              `unknown binary operator: ${
+                ts.SyntaxKind[op.kind]
+              } (${op.getText()})`
+            );
         }
 
         // TODO: when/who/why should box the values?
-        if (isBoxPointer(left.getType()) ||
-          isBoxPointer(right.getType())) {
+        if (isBoxPointer(left.getType()) || isBoxPointer(right.getType())) {
           const ptr = this.builder.CreateBitCast(
             this.builder.CreateCall(
               this.malloc,
@@ -1104,25 +1062,17 @@ class Compiler {
           );
           this.builder.CreateStore(
             this.builder.getInt32(Type.NUMBER),
-            this.builder.CreateGEP(
-              this.boxType,
-              ptr,
-              [
-                this.builder.getInt32(0),
-                this.builder.getInt32(0),
-              ]
-            )
+            this.builder.CreateGEP(this.boxType, ptr, [
+              this.builder.getInt32(0),
+              this.builder.getInt32(0),
+            ])
           );
           this.builder.CreateStore(
             res,
-            this.builder.CreateGEP(
-              this.boxType,
-              ptr,
-              [
-                this.builder.getInt32(0),
-                this.builder.getInt32(1),
-              ]
-            )
+            this.builder.CreateGEP(this.boxType, ptr, [
+              this.builder.getInt32(0),
+              this.builder.getInt32(1),
+            ])
           );
           res = ptr;
         }
@@ -1134,20 +1084,18 @@ class Compiler {
           // TODO: left might not be a box?
           const t = this.builder.CreateLoad(
             this.builder.getInt32Ty(),
-            this.builder.CreateGEP(
-              this.boxType,
-              left,
-              [
-                this.builder.getInt32(0),
-                this.builder.getInt32(0),
-              ]
-            )
+            this.builder.CreateGEP(this.boxType, left, [
+              this.builder.getInt32(0),
+              this.builder.getInt32(0),
+            ])
           );
           return this.builder.CreateICmpEQ(t, this.builder.getInt32(Type.NULL));
         }
         return this.builder.CreateICmpEQ(left, right);
       }
-      throw new Error(`unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`);
+      throw new Error(
+        `unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`
+      );
     } else if (ts.isObjectLiteralExpression(node)) {
       // TODO: dedup object structure.
 
@@ -1162,9 +1110,10 @@ class Compiler {
         // TODO: more nuance to ordering, etc.
         [
           this.structVtables.get(objType.getName())!,
-          ...node.properties.map(prop =>
-            this.genExpr((prop as ts.PropertyAssignment).initializer))
-        ],
+          ...node.properties.map((prop) =>
+            this.genExpr((prop as ts.PropertyAssignment).initializer)
+          ),
+        ]
       );
 
       const ptr = this.builder.CreateBitCast(
@@ -1179,7 +1128,6 @@ class Compiler {
 
       return ptr;
     } else if (ts.isPropertyAccessExpression(node)) {
-
       const target = this.genExpr(node.expression);
 
       const symbol = this.checker.getSymbolAtLocation(node.name);
@@ -1193,70 +1141,52 @@ class Compiler {
       // vtable/itable
       const vtable_ptr = this.builder.CreateLoad(
         llvm.PointerType.get(this.vtableType, 0),
-        this.builder.CreateGEP(
-          this.baseObjType,
-          target,
-          [
-            this.builder.getInt32(0),
-            // vtable index
-            this.builder.getInt32(0),
-          ]
-        ),
+        this.builder.CreateGEP(this.baseObjType, target, [
+          this.builder.getInt32(0),
+          // vtable index
+          this.builder.getInt32(0),
+        ]),
         "vtable_ptr"
       );
 
       const itable_ptr = this.builder.CreateCall(
         this.lib.get("get_itable_from_vtable")!,
-        [
-          vtable_ptr,
-          this.builder.getInt32(ifcId),
-        ],
+        [vtable_ptr, this.builder.getInt32(ifcId)],
         "itable_ptr"
       );
 
       const propName = node.name.text;
-      const ifcPropIndex = ifcShape.findIndex(p => p.name === propName);
+      const ifcPropIndex = ifcShape.findIndex((p) => p.name === propName);
 
       const offsetArray = this.builder.CreateLoad(
         llvm.PointerType.get(this.builder.getInt32Ty(), 0),
-        this.builder.CreateGEP(
-          this.itableType,
-          itable_ptr,
-          [
-            this.builder.getInt32(0),
-            this.builder.getInt32(1),
-          ]
-        ),
-        'offset_array'
+        this.builder.CreateGEP(this.itableType, itable_ptr, [
+          this.builder.getInt32(0),
+          this.builder.getInt32(1),
+        ]),
+        "offset_array"
       );
 
       const offset = this.builder.CreateLoad(
         this.builder.getInt32Ty(),
-        this.builder.CreateGEP(
-          this.builder.getInt32Ty(),
-          offsetArray,
-          [
-            this.builder.getInt32(ifcPropIndex),
-          ]
-        ),
-        'offset'
+        this.builder.CreateGEP(this.builder.getInt32Ty(), offsetArray, [
+          this.builder.getInt32(ifcPropIndex),
+        ]),
+        "offset"
       );
       // this.printf("offset = %d", [offset]);
 
       const offset_on_obj = this.builder.CreateAdd(
-        this.builder.CreatePtrToInt(
-          target,
-          this.builder.getInt64Ty()
-        ),
+        this.builder.CreatePtrToInt(target, this.builder.getInt64Ty()),
         this.builder.CreateIntCast(offset, this.builder.getInt64Ty(), true),
-        'offset_on_obj'
+        "offset_on_obj"
       );
 
       const offset_ptr = this.builder.CreateIntToPtr(
         offset_on_obj,
         // TODO: type
         llvm.PointerType.get(this.builder.getInt32Ty(), 0),
-        'offset_ptr'
+        "offset_ptr"
       );
 
       const value = this.builder.CreateLoad(
@@ -1283,46 +1213,50 @@ class Compiler {
       [
         strPtr,
         this.builder.getInt32(1000),
-        this.builder.CreateInBoundsGEP(
-          this.builder.getInt8PtrTy(),
-          fmtPtr,
-          []
-        ),
+        this.builder.CreateInBoundsGEP(this.builder.getInt8PtrTy(), fmtPtr, []),
         ...args,
       ]
     );
-    this.builder.CreateCall(
-      this.libTypes.get("puts")!,
-      this.lib.get("puts")!,
-      [strPtr]
-    );
+    this.builder.CreateCall(this.libTypes.get("puts")!, this.lib.get("puts")!, [
+      strPtr,
+    ]);
   }
 }
 
 function printRecursiveFrom(
   checker: ts.TypeChecker,
-  node: ts.Node, indentLevel: number, sourceFile: ts.SourceFile
+  node: ts.Node,
+  indentLevel: number,
+  sourceFile: ts.SourceFile
 ) {
   const indentation = "-".repeat(indentLevel);
   const syntaxKind = ts.SyntaxKind[node.kind];
   const nodeText = node.getText(sourceFile);
   console.log(`${indentation}${syntaxKind}: ${nodeText}`);
 
-  if (syntaxKind === 'Identifier') {
+  if (syntaxKind === "Identifier") {
     const symbol = checker.getSymbolAtLocation(node);
     if (symbol) {
       console.log(`${indentation}-@@ symbol: ${symbol.getName()}`);
-      console.log(`${indentation}-@@ symbol.doc: ${symbol.getDocumentationComment(checker)}`);
-      console.log(`${indentation}-@@ symbol.type@decl: ${checker.typeToString(
-        checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration!)
-      )}`);
-      console.log(`${indentation}-@@ symbol.type@use: ${checker.typeToString(
-        checker.getTypeOfSymbolAtLocation(symbol, node)
-      )}`);
+      console.log(
+        `${indentation}-@@ symbol.doc: ${symbol.getDocumentationComment(
+          checker
+        )}`
+      );
+      console.log(
+        `${indentation}-@@ symbol.type@decl: ${checker.typeToString(
+          checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration!)
+        )}`
+      );
+      console.log(
+        `${indentation}-@@ symbol.type@use: ${checker.typeToString(
+          checker.getTypeOfSymbolAtLocation(symbol, node)
+        )}`
+      );
     }
   }
 
-  node.forEachChild(child =>
+  node.forEachChild((child) =>
     printRecursiveFrom(checker, child, indentLevel + 1, sourceFile)
   );
 }
@@ -1335,7 +1269,7 @@ function isExported(node: ts.Node): boolean {
   if (!node.modifiers) {
     return false;
   }
-  return node.modifiers.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword);
+  return node.modifiers.some((mod) => mod.kind === ts.SyntaxKind.ExportKeyword);
 }
 
 function isConcrete(func: ts.FunctionDeclaration): boolean {
@@ -1361,19 +1295,19 @@ function typeName(type: llvm.Type) {
       return "token";
     case llvm.Type.TypeID.IntegerTyID:
       if (type.isIntegerTy(1)) {
-        return 'i1';
+        return "i1";
       }
       if (type.isIntegerTy(8)) {
-        return 'i8';
+        return "i8";
       }
       if (type.isIntegerTy(16)) {
-        return 'i16';
+        return "i16";
       }
       if (type.isIntegerTy(32)) {
-        return 'i32';
+        return "i32";
       }
       if (type.isIntegerTy(64)) {
-        return 'i64';
+        return "i64";
       }
       return "integer";
     case llvm.Type.TypeID.FunctionTyID:
@@ -1392,5 +1326,5 @@ function typeName(type: llvm.Type) {
 }
 
 function isBoxPointer(type: llvm.Type) {
-  return typeName(type) === 'Box*';
+  return typeName(type) === "Box*";
 }

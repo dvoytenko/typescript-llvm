@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
-    "prettier": "prettier --config .prettierrc 'src/**/*.ts' --write",
+    "prettier": "prettier --config .prettierrc '**/*.ts' --write",
     "build": "tsc --project tsconfig.json",
     "debug_ast": "npm run build && node ./out/src/debug_ast.js",
     "debug_ast:watch": "nodemon -e ts,json --ignore out --ignore dist --exec \"npm run debug_ast\"",

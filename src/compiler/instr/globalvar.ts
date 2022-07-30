@@ -1,5 +1,5 @@
-import llvm from 'llvm-bindings';
-import { Pointer, Type, Value } from '../types/base';
+import llvm from "llvm-bindings";
+import { Pointer, Type, Value } from "../types/base";
 
 export class GlobalVar<T extends Type> {
   public readonly type: T;
@@ -10,7 +10,7 @@ export class GlobalVar<T extends Type> {
     module: llvm.Module,
     public readonly name: string,
     public readonly value: Value<T>
-    ) {
+  ) {
     this.type = value.type;
     // QQQQ: fix llvm.Constant cast!?
     this.llVar = new llvm.GlobalVariable(
@@ -23,5 +23,4 @@ export class GlobalVar<T extends Type> {
     );
     this.ptr = new Pointer(this.type, this.llVar);
   }
-
 }
