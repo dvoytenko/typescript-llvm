@@ -4,6 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "prettier": "prettier --config .prettierrc 'src/**/*.ts' --write",
     "build": "tsc --project tsconfig.json",
     "debug_ast": "npm run build && node ./out/src/debug_ast.js",
     "debug_ast:watch": "nodemon -e ts,json --ignore out --ignore dist --exec \"npm run debug_ast\"",
@@ -14,9 +17,15 @@
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^18.0.3",
+    "@typescript-eslint/eslint-plugin": "^5.31.0",
+    "@typescript-eslint/parser": "^5.31.0",
     "@typescript/vfs": "^1.3.5",
+    "eslint": "^8.20.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.2.1",
     "llvm-bindings": "file:../llvm-bindings",
     "nodemon": "^2.0.19",
+    "prettier": "^2.7.1",
     "typescript": "^4.7.4"
   }
 }
