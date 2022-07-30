@@ -1,8 +1,6 @@
 import llvm from "llvm-bindings";
-import { BoxedType, I32Type, Pointer, PointerType, Type, Value } from "./base";
-import { JsNullType } from "./jsnull";
+import { BoxedType, I32Type, Pointer, Value } from "./base";
 import { JsType, JsValueType } from "./jsvalue";
-import { StructType } from "./struct";
 
 export class JsNumberType
   extends JsValueType<
@@ -49,9 +47,7 @@ export class JsNumberType
     ptr: Pointer<typeof this>,
     value: Value<I32Type>
   ) {
-    const i32 = new I32Type(this.context);
     this.storeStruct(builder, ptr, {
-      // jsType: new Value(i32, llvm.ConstantInt.get(i32.llType, this.jsType)),
       jsType: this.fields.jsType.constValue(this.jsType),
       value,
     });

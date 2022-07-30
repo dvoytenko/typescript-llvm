@@ -1,5 +1,5 @@
 import llvm from "llvm-bindings";
-import { I32Type, Pointer, PointerType, Type, Value } from "./base";
+import { I32Type, Pointer, Value } from "./base";
 import { StructFields, StructType } from "./struct";
 
 export enum JsType {

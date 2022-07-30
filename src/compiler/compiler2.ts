@@ -3,15 +3,10 @@ import ts from "typescript";
 import { CompilerContext } from "./context";
 import { Debug, debugFactory } from "./debug";
 import { Instr, instrFactory } from "./instr";
-import { Function } from "./instr/func";
 import { Jslib, jslibFactory } from "./jslib";
 import { expressions, ExprHandlers } from "./ts/expressions";
 import { declFunction, TsFunction } from "./ts/func";
-import {
-  StatementHandler,
-  StatementHandlers,
-  statements,
-} from "./ts/statements";
+import { StatementHandlers, statements } from "./ts/statements";
 import { types as typesFactory, type Types } from "./types";
 import { Value } from "./types/base";
 
@@ -155,7 +150,7 @@ class Compiler {
 
   private gen() {
     // Functions.
-    while (true) {
+    while (this.functions.size > 0) {
       const toGen = Array.from(this.functions.values()).filter(
         (f) => !f.generated
       );
@@ -182,7 +177,7 @@ class Compiler {
 
     for (let i = 0; i < node.parameters.length; i++) {
       const argNode = node.parameters[i];
-      const argName = argNode.name.getText();
+      // const argName = argNode.name.getText();
       const argValue = func.args[i];
       this.refs.set(argNode, argValue);
     }
@@ -194,7 +189,7 @@ class Compiler {
     tsFunc.generated = true;
 
     const { node, func } = tsFunc;
-    const { instr, types, debug } = this;
+    const { instr } = this;
 
     if (!node.body) {
       return;

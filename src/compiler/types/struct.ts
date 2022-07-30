@@ -83,7 +83,6 @@ export class StructType<Fields extends StructFields> extends Type {
     field: F,
     value: Value<Fields[F]>
   ) {
-    const type = this.fields[field];
     const fieldPtr = this.gep(builder, ptr, field);
     builder.CreateStore(value.llValue, fieldPtr.llValue);
   }

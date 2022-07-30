@@ -1,7 +1,5 @@
-import llvm from "llvm-bindings";
 import ts from "typescript";
 import { CompilerContext } from "../context";
-import { Types } from "../types";
 import { PointerType, Type } from "../types/base";
 import { JsValueType } from "../types/jsvalue";
 

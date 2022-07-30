@@ -1,13 +1,12 @@
-import llvm from "llvm-bindings";
 import ts from "typescript";
 import { CompilerContext } from "../context";
 import { Instr } from "../instr";
 import { Function } from "../instr/func";
 import { Types } from "../types";
-import { tsToGType, tsToGTypeUnboxed } from "./types";
+import { tsToGTypeUnboxed } from "./types";
 
 export class TsFunction {
-  public generated: boolean = false;
+  public generated = false;
 
   constructor(
     public readonly node: ts.FunctionDeclaration,

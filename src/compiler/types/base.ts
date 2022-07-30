@@ -22,6 +22,7 @@ export class Type {
     return false;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isPointerTo<T extends Type>(type: T | (new () => T)): this is PointerType<T> {
     return false;
   }

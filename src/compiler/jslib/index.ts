@@ -1,18 +1,12 @@
-import llvm from "llvm-bindings";
 import { Debug } from "../debug";
 import { Instr } from "../instr";
 import { Function } from "../instr/func";
 import { Types } from "../types";
-import { I32Type, IntType, Pointer, PointerType, Value } from "../types/base";
+import { I32Type, Pointer, PointerType, Value } from "../types/base";
 import { BoolType } from "../types/bool";
 import { JsNullType } from "../types/jsnull";
 import { JsNumberType } from "../types/jsnumber";
-import {
-  JsType,
-  JsUnknownType,
-  JsUnknownType2,
-  JsValueType,
-} from "../types/jsvalue";
+import { JsType, JsUnknownType, JsUnknownType2 } from "../types/jsvalue";
 
 interface JslibValues {
   jsNull: Pointer<JsNullType>;
@@ -65,7 +59,7 @@ export function jslibFactory(gen: Gen): Jslib {
   };
   const funcs: JslibFunctions = {
     addAny: addAnyFunctionFactory(gen, values),
-    strictEqAny: strictEqAnyFunctionFactory(gen, values),
+    strictEqAny: strictEqAnyFunctionFactory(gen),
   };
   return {
     values,
@@ -76,7 +70,7 @@ export function jslibFactory(gen: Gen): Jslib {
 }
 
 function addFactory(
-  { instr, types, debug }: Gen,
+  { instr, types }: Gen,
   values: JslibValues,
   funcs: JslibFunctions
 ): AddInstr {
@@ -109,13 +103,9 @@ function addFactory(
   };
 }
 
-function addAnyFunctionFactory(
-  { instr, types, debug }: Gen,
-  values: JslibValues
-) {
+function addAnyFunctionFactory({ instr, types }: Gen, values: JslibValues) {
   const { i32, jsValue, jsNumber } = types;
   const jsValuePtr = jsValue.pointerOf();
-  const jsNumberPtr = jsNumber.pointerOf();
   const funcType = types.func<PointerType<JsUnknownType2>, AddAnyArgs>(
     jsValuePtr as PointerType<JsUnknownType2>,
     [
@@ -180,7 +170,7 @@ function addAnyFunctionFactory(
 }
 
 function strictEqFactory(
-  { instr, types, debug }: Gen,
+  { instr, types }: Gen,
   values: JslibValues,
   funcs: JslibFunctions
 ): StrictEqInstr {
@@ -230,13 +220,9 @@ function strictEqFactory(
   };
 }
 
-function strictEqAnyFunctionFactory(
-  { instr, types, debug }: Gen,
-  values: JslibValues
-) {
-  const { bool, i32, jsValue, jsNumber } = types;
+function strictEqAnyFunctionFactory({ instr, types }: Gen) {
+  const { bool, jsValue } = types;
   const jsValuePtr = jsValue.pointerOf();
-  const jsNumberPtr = jsNumber.pointerOf();
   const funcType = types.func<BoolType, AddAnyArgs>(bool, [
     jsValuePtr as PointerType<JsUnknownType2>,
     jsValuePtr as PointerType<JsUnknownType2>,

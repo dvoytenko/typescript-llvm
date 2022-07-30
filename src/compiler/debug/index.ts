@@ -20,7 +20,7 @@ export function debugFactory(
   const debugValue = debugValueFactory(instr, types, snprintf);
   return {
     debugValue,
-    printf: printfFactory(builder, snprintf, puts, debugValue),
+    printf: printfFactory(builder, snprintf, puts),
   };
 }
 
@@ -119,8 +119,7 @@ function debugValueFactory(
 function printfFactory(
   builder: llvm.IRBuilder,
   snprintf: llvm.Function,
-  puts: llvm.Function,
-  debugValue: (value: Value<any>) => Pointer<I8Type>
+  puts: llvm.Function
 ) {
   return (fmt: string, args: (Value<any> | llvm.Value)[]) => {
     const fmtPtr = builder.CreateGlobalStringPtr(fmt, "fmt");

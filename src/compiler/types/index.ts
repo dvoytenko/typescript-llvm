@@ -1,10 +1,10 @@
 import llvm from "llvm-bindings";
-import { I32Type, I64Type, I8Type, PointerType, Type, Value } from "./base";
+import { I32Type, I64Type, I8Type, PointerType, Type } from "./base";
 import { BoolType } from "./bool";
 import { FunctionType } from "./func";
 import { JsNullType } from "./jsnull";
 import { JsNumberType } from "./jsnumber";
-import { JsUnknownType, JsValueType } from "./jsvalue";
+import { JsUnknownType } from "./jsvalue";
 import { StructFields, StructType } from "./struct";
 
 export interface Types {
