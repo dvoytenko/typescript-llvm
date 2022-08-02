@@ -152,7 +152,6 @@ function binaryExpressionFactory({ jslib, genExpr }: CompilerContext) {
       return jslib.add("add_res", left, right);
     }
     if (op.kind === ts.SyntaxKind.MinusToken) {
-      // QQQQQ
       return jslib.sub("sub_res", left, right);
     }
     if (op.kind === ts.SyntaxKind.EqualsEqualsEqualsToken) {
