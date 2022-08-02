@@ -5,9 +5,10 @@ import { JsValueType } from "../types/jsvalue";
 
 export function tsToGTypeUnboxed(
   tsType: ts.Type,
+  node: ts.Node,
   context: CompilerContext
 ): Type {
-  const type = tsToGType(tsType, context);
+  const type = tsToGType(tsType, node, context);
   if (type.toType.isBoxed() && !tsType.isUnionOrIntersection()) {
     return type.toType.unboxedType;
   }
@@ -16,6 +17,7 @@ export function tsToGTypeUnboxed(
 
 export function tsToGType(
   tsType: ts.Type,
+  node: ts.Node,
   context: CompilerContext
 ): PointerType<JsValueType<any, any>> {
   const { types } = context;
@@ -67,9 +69,38 @@ export function tsToGType(
     return types.jsNumber.pointerOf();
   }
 
+  if (flags & ts.TypeFlags.Object) {
+    flags &= ~ts.TypeFlags.Object;
+    if (flags !== 0) {
+      throw new Error(`not all flags picked up: ${flags} ${flags.toString(2)}`);
+    }
+    // TODO: do we need `node` here for location info?
+    return context.declObjType(tsType, node).pointerOf();
+  }
+
+  /* type: { a: number; b: number; }
+     flags: 524288  
+        Object (2 ^ 19)
+        DefinitelyNonNullable
+        StructuredType
+        StructuredOrInstantiable
+        ObjectFlagsType
+        Narrowable
+        IncludesMask
+        NotPrimitiveUnion    
+     
+     objectFlags: 139408
+        Anonymous (2 ^ 4)
+        ObjectLiteral (2 ^ 7)
+        FreshLiteral (2 ^ 13)
+        ContainsObjectOrArrayLiteral (2 ^ 17)
+        RequiresWidening
+        PropagatingFlags
+        ObjectTypeKindMask        
+   */
+
   /* type: number
      flags: 8
-
         Number (2 ^ 3)
         PossiblyFalsy
         Intrinsic

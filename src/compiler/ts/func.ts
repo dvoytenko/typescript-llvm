@@ -32,15 +32,15 @@ export function declFunction(
   const sig = checker.getSignatureFromDeclaration(node)!;
   const tsReturnType = checker.getReturnTypeOfSignature(sig);
   console.log("QQQQ: sig: ", checker.signatureToString(sig));
-  console.log("QQQQ: ret: ", checker.typeToString(tsReturnType));
-  const returnType = tsToGTypeUnboxed(tsReturnType, context);
-  console.log("QQQQ: llReturnType: ", returnType);
+  // console.log("QQQQ: ret: ", checker.typeToString(tsReturnType));
+  const returnType = tsToGTypeUnboxed(tsReturnType, node, context);
+  // console.log("QQQQ: llReturnType: ", returnType);
 
   const args = node.parameters.map((arg) => {
     const argName = arg.name.getText();
     const argType = checker.getTypeAtLocation(arg);
     console.log("QQQQ: arg: ", argName, checker.typeToString(argType));
-    const gArgType = tsToGTypeUnboxed(argType, context);
+    const gArgType = tsToGTypeUnboxed(argType, arg, context);
     console.log("QQQQ: llArgType: ", gArgType);
     return gArgType;
   });

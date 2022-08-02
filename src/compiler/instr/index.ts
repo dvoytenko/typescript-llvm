@@ -58,6 +58,7 @@ export interface Instr {
     a: Value<T>,
     b: Value<T>
   ) => Value<BoolType>;
+  isNull: (value: Pointer<any>) => Value<BoolType>;
   gepArray: <T extends Type>(
     name: string,
     ptr: Pointer<T>,
@@ -127,6 +128,7 @@ export function instrFactory(
     add: addFactory(builder),
     sub: subFactory(builder),
     icmpEq: icmpEqFactory(types, builder),
+    isNull: isNullFactory(types, builder),
     gepArray: gepArrayFactory(builder),
     load: loadFactory(builder),
     store: storeFactory(builder),
@@ -219,6 +221,17 @@ function strictConvertFactory(
   const loadUnboxed = loadUnboxedFactory(builder);
   const storeBoxed = storeBoxedFactory(builder);
   return <T extends Type>(value: Value<any>, toType: T): Value<T> => {
+    // Custom JsObjects.
+    // TODO: to complicated a formula. Maybe do JsCustObject?
+    if (
+      toType.isPointerTo(types.jsObject) &&
+      value.isPointerTo(types.jsObject) &&
+      value.isA(toType) &&
+      value.type.typeName !== toType.typeName
+    ) {
+      return cast("cast", value, toType.toType) as unknown as Value<T>;
+    }
+
     // Already the right type.
     if (value.isA(toType)) {
       return value;
@@ -295,6 +308,13 @@ function subFactory(builder: llvm.IRBuilder) {
 function icmpEqFactory(types: Types, builder: llvm.IRBuilder) {
   return <T extends IntType<any>>(name: string, a: Value<T>, b: Value<T>) => {
     const res = builder.CreateICmpEQ(a.llValue, b.llValue, name);
+    return new Value(types.bool, res);
+  };
+}
+
+function isNullFactory(types: Types, builder: llvm.IRBuilder) {
+  return (value: Pointer<any>) => {
+    const res = builder.CreateIsNull(value.llValue);
     return new Value(types.bool, res);
   };
 }

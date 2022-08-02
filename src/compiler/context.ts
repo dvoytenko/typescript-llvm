@@ -6,6 +6,7 @@ import { Jslib } from "./jslib";
 import { TsFunction } from "./ts/func";
 import { Types } from "./types";
 import { Value } from "./types/base";
+import { JsObject } from "./types/jsobject";
 
 export interface CompilerContext {
   types: Types;
@@ -24,4 +25,6 @@ export interface CompilerContext {
 
   genInBlock(block: llvm.BasicBlock, gen: () => void, finish: () => void);
   terminateBlock();
+
+  declObjType(tsType: ts.Type, node: ts.Node): JsObject;
 }

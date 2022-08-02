@@ -139,6 +139,10 @@ export class PointerType<T extends Type> extends Type {
   create(ptr: llvm.Value): Pointer<T> {
     return new Pointer(this.toType, ptr);
   }
+
+  nullptr(): Pointer<T> {
+    return this.create(llvm.ConstantPointerNull.get(this.llType));
+  }
 }
 
 export class Pointer<T extends Type> extends Value<PointerType<T>> {

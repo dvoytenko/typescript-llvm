@@ -7,8 +7,11 @@ import { Jslib, jslibFactory } from "./jslib";
 import { expressions, ExprHandlers } from "./ts/expressions";
 import { declFunction, TsFunction } from "./ts/func";
 import { StatementHandlers, statements } from "./ts/statements";
+import { tsToGTypeUnboxed } from "./ts/types";
 import { types as typesFactory, type Types } from "./types";
 import { Value } from "./types/base";
+import { JsObject } from "./types/jsobject";
+import { StructFields, StructType } from "./types/struct";
 
 export function compile(file: string): string {
   console.log("COMPILE: ", file);
@@ -38,6 +41,7 @@ class Compiler {
 
   private readonly functions: Map<ts.Node, TsFunction> = new Map();
   private readonly refs: Map<ts.Node, Value<any>> = new Map();
+  private readonly objTypes: Map<string, JsObject> = new Map();
   private sourceFile: ts.SourceFile;
   private currentFunc: TsFunction | null = null;
   private blockTerminated: boolean[] = [];
@@ -106,6 +110,7 @@ class Compiler {
           this.blockTerminated[this.blockTerminated.length - 1] = true;
         }
       },
+      declObjType: this.declObjType.bind(this),
     };
 
     this.statements = statements(this.compilerContext);
@@ -220,6 +225,36 @@ class Compiler {
       throw new Error(`unknown expression: ${ts.SyntaxKind[node.kind]}`);
     }
     return handler(node);
+  }
+
+  private declObjType(tsType: ts.Type, node: ts.Node): JsObject {
+    const key = `u/Obj<${this.checker.typeToString(tsType)}>`;
+    let objType = this.objTypes.get(key);
+    if (!objType) {
+      const { types, checker } = this;
+
+      const shape: StructFields = {};
+      for (const prop of tsType.getProperties()) {
+        const propName = prop.name;
+        const propType = checker.getTypeOfSymbolAtLocation(prop, node);
+        const propGType = tsToGTypeUnboxed(
+          propType,
+          node,
+          this.compilerContext
+        );
+        shape[propName] = propGType;
+      }
+
+      const shapeType = new StructType(
+        types.context,
+        `u/Shape<${this.checker.typeToString(tsType)}>`,
+        shape
+      );
+
+      objType = new JsObject(types.context, types.jsvMap, key, shapeType);
+      this.objTypes.set(key, objType);
+    }
+    return objType;
   }
 }
 

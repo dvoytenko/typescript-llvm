@@ -6,6 +6,8 @@ import { compile } from '../src/compiler';
 import { compile as compile2} from '../src/compiler/compiler2';
 import { compile as compile3} from '../src/compiler/compiler3';
 
+const TEST = 'four';
+
 console.log('Any specific test specified? ', process.argv[2]);
 
 const WORK_DIR = __dirname;
@@ -33,7 +35,7 @@ async function run(dir: string) {
 
 async function test(file: string): Promise<void> {
   console.log('TS FILE: ', file);
-  if (!file.includes('three')) {
+  if (!file.includes(TEST)) {
     return;
   }
 

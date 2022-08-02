@@ -35,9 +35,10 @@ export abstract class JsValueType<
   constructor(
     context: llvm.LLVMContext,
     public readonly jsType: JST,
-    fields: Fields
+    fields: Fields,
+    name?: string
   ) {
-    super(context, `JSV${jsType !== JsType.UNKNOWN ? jsType : ""}`, {
+    super(context, name ?? `JSV${jsType !== JsType.UNKNOWN ? jsType : ""}`, {
       jsType: new I32Type(context),
       ...fields,
     });

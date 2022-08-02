@@ -10,7 +10,7 @@ export type StructValues<T extends StructFields> = {
 };
 
 export class StructType<Fields extends StructFields> extends Type {
-  private fieldNames: (keyof Fields)[];
+  public readonly fieldNames: (keyof Fields)[];
 
   constructor(
     context: llvm.LLVMContext,
