@@ -203,12 +203,7 @@ class Compiler {
 
     this.currentFunc = null;
 
-    if (llvm.verifyFunction(func.llFunc)) {
-      console.log(`${"\x1b[31m"}${tsFunc.name}: FAILED${"\x1b[0m"}`);
-      //   throw new Error(`Verifying function failed: ${funcName}`);
-    } else {
-      console.log(`${"\x1b[34m"}${tsFunc.name}: SUCCESS${"\x1b[0m"}`);
-    }
+    func.verify();
   }
 
   private genStatement(node: ts.Statement) {

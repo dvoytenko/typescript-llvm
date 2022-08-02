@@ -92,8 +92,18 @@ export class StructType<Fields extends StructFields> extends Type {
     ptr: Pointer<typeof this>,
     struct: StructValues<Fields>
   ) {
+    this.storePartialStruct(builder, ptr, struct);
+  }
+
+  storePartialStruct(
+    builder: llvm.IRBuilder,
+    ptr: Pointer<typeof this>,
+    struct: Partial<StructValues<Fields>>
+  ) {
     for (const f of this.fieldNames) {
-      this.store(builder, ptr, f, struct[f]);
+      if (struct[f] !== undefined) {
+        this.store(builder, ptr, f, struct[f]!);
+      }
     }
   }
 }

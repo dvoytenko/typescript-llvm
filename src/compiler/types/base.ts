@@ -39,6 +39,7 @@ export class Type {
     return this.constructor.name.toLowerCase().replace("type", "");
   }
 
+  // TODO: move to instr
   sizeof(builder: llvm.IRBuilder): Value<I64Type> {
     // TODO: resolve types/consts via types/gen?
     const arrayType = llvm.PointerType.get(this.llType, 0);
@@ -74,6 +75,10 @@ export interface BoxedType<BT extends Type> {
 export class Value<T extends Type> {
   constructor(public type: T, public llValue: llvm.Value) {}
 
+  isConst(): this is ConstValue<T> {
+    return false;
+  }
+
   isA<T extends Type>(other: T): this is Value<T> {
     return this.type.isA(other);
   }
@@ -84,6 +89,16 @@ export class Value<T extends Type> {
 
   isPointerTo<T extends Type>(type: T | (new () => T)): this is Pointer<T> {
     return this.type.isPointerTo(type);
+  }
+}
+
+export class ConstValue<T extends Type> extends Value<T> {
+  constructor(type: T, public llValue: llvm.Constant) {
+    super(type, llValue);
+  }
+
+  isConst(): this is ConstValue<T> {
+    return true;
   }
 }
 
@@ -137,8 +152,8 @@ export class IntType<B extends IntBits> extends Type {
     super(context, llvm.IntegerType.get(context, bits));
   }
 
-  constValue(v: number): Value<typeof this> {
-    return new Value(this, llvm.ConstantInt.get(this.llType, v));
+  constValue(v: number): ConstValue<typeof this> {
+    return new ConstValue(this, llvm.ConstantInt.get(this.llType, v));
   }
 }
 

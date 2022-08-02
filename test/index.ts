@@ -33,7 +33,7 @@ async function run(dir: string) {
 
 async function test(file: string): Promise<void> {
   console.log('TS FILE: ', file);
-  if (!file.includes('two')) {
+  if (!file.includes('three')) {
     return;
   }
 
@@ -73,8 +73,10 @@ function execLl(file: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     exec('lli ' + file, (error, stdout, stderr) => {
       if (error) {
+        console.log(stdout);
         reject(new Error(`error: ${error.message}`));
       } else if (stderr) {
+        console.log(stdout);
         reject(new Error(`stderr: ${stderr}`));
       } else {
         resolve(stdout);

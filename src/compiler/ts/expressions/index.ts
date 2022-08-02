@@ -23,6 +23,8 @@ export function expressions(context: CompilerContext): ExprHandlers {
     [ts.SyntaxKind.NullKeyword]: nullFactory,
     [ts.SyntaxKind.NumericLiteral]: numericLiteralFactory,
     [ts.SyntaxKind.BinaryExpression]: binaryExpressionFactory,
+    [ts.SyntaxKind.ObjectLiteralExpression]: objectLiteralExpressionFactory,
+    [ts.SyntaxKind.PropertyAccessExpression]: propertyAccessExpressionFactory,
   };
   return Object.fromEntries(
     Object.entries(factories).map(([kind, factory]) => [kind, factory(context)])
@@ -149,11 +151,72 @@ function binaryExpressionFactory({ jslib, genExpr }: CompilerContext) {
       // TODO: better name: var name, etc?
       return jslib.add("add_res", left, right);
     }
+    if (op.kind === ts.SyntaxKind.MinusToken) {
+      // QQQQQ
+      return jslib.sub("sub_res", left, right);
+    }
     if (op.kind === ts.SyntaxKind.EqualsEqualsEqualsToken) {
       return jslib.strictEq("stricteq", left, right);
     }
     throw new Error(
       `unknown binary operator: ${ts.SyntaxKind[op.kind]} (${op.getText()})`
     );
+  };
+}
+
+function objectLiteralExpressionFactory({
+  types,
+  instr,
+  jslib,
+  debug,
+  genExpr,
+}: CompilerContext) {
+  debug;
+  return (node: ts.ObjectLiteralExpression) => {
+    const jsObject = types.jsObject;
+    // TODO: better name from source.
+    const ptr = instr.malloc("jso", jsObject);
+    const helper = jslib.jsObjectHelper(ptr);
+    helper.init();
+    for (const prop of node.properties) {
+      const propAssignment = prop as ts.PropertyAssignment;
+      if (!ts.isIdentifier(propAssignment.name)) {
+        throw new Error("only identifiers supported as object keys");
+      }
+      const propValue = genExpr(propAssignment.initializer);
+      if (!(propValue instanceof Value<any>)) {
+        throw new Error("cannot use value for object expression");
+      }
+      const keyStr = types.jsString.constValue(instr, propAssignment.name.text);
+      const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
+      const propValuePtr = instr.strictConvert(
+        propValue,
+        types.jsValue.pointerOf()
+      );
+      helper.setField(keyPtr, propValuePtr);
+    }
+    return ptr;
+  };
+}
+
+function propertyAccessExpressionFactory({
+  types,
+  instr,
+  jslib,
+  genExpr,
+}: CompilerContext) {
+  return (node: ts.PropertyAccessExpression) => {
+    const jsObject = types.jsObject;
+    const target = genExpr(node.expression);
+    if (!(target instanceof Value<any>)) {
+      throw new Error("cannot use value for object access expression");
+    }
+    const objPtr = instr.strictConvert(target, jsObject.pointerOf());
+    const helper = jslib.jsObjectHelper(objPtr);
+
+    const propName = node.name.text;
+    const keyStr = types.jsString.constValue(instr, propName);
+    const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
+    return helper.getField(keyPtr);
   };
 }

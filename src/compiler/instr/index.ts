@@ -48,17 +48,27 @@ export interface Instr {
     a: Value<T>,
     b: Value<T>
   ) => Value<T>;
+  sub: <T extends IntType<any>>(
+    name: string,
+    a: Value<T>,
+    b: Value<T>
+  ) => Value<T>;
   icmpEq: <T extends IntType<any>>(
     name: string,
     a: Value<T>,
     b: Value<T>
   ) => Value<BoolType>;
+  gepArray: <T extends Type>(
+    name: string,
+    ptr: Pointer<T>,
+    index: Value<IntType<any>>
+  ) => Pointer<T>;
   // TODO: only primitives (first class, non-aggr)
   load: <T extends Type>(name: string, ptr: Pointer<T>) => Value<T>;
+  store: <T extends Type>(ptr: Pointer<T>, value: Value<T>) => void;
   loadUnboxed: <T extends Type & BoxedType<any>>(
     ptr: Pointer<T>
   ) => Value<T extends BoxedType<infer BT> ? BT : never>;
-  // store: () => void;
   storeBoxed: <T extends Type & BoxedType<any>>(
     ptr: Pointer<T>,
     value: Value<T extends BoxedType<infer BT> ? BT : never>
@@ -89,6 +99,11 @@ export interface Instr {
     defBlock: llvm.BasicBlock,
     cases: SwitchCase<T>[]
   ) => void;
+  phiBr: <T extends IntType<any>>(
+    name: string,
+    type: T,
+    branchCount: number
+  ) => PhiBr<T>;
 }
 
 export function instrFactory(
@@ -110,10 +125,12 @@ export function instrFactory(
     cast: castFactory(builder),
     strictConvert: strictConvertFactory(builder, types, malloc),
     add: addFactory(builder),
+    sub: subFactory(builder),
     icmpEq: icmpEqFactory(types, builder),
+    gepArray: gepArrayFactory(builder),
     load: loadFactory(builder),
+    store: storeFactory(builder),
     loadUnboxed: loadUnboxedFactory(builder),
-    // store: storeFactory(builder),
     storeBoxed: storeBoxedFactory(builder),
     func: <Ret extends Type, Args extends [...Type[]]>(
       name: string,
@@ -127,6 +144,7 @@ export function instrFactory(
     br: brFactory(builder),
     condBr: condBrFactory(builder),
     switchBr: switchBrFactory(builder),
+    phiBr: phiBrFactory(builder),
   };
 }
 
@@ -136,7 +154,11 @@ function allocaFactory(builder: llvm.IRBuilder) {
     type: T,
     arraySize?: Value<I32Type> | null
   ) => {
-    const ptr = builder.CreateAlloca(type.llType, arraySize?.llValue, name);
+    const ptr = builder.CreateAlloca(
+      type.llType,
+      arraySize?.llValue ?? null,
+      name
+    );
     return new Pointer(type, ptr);
   };
 }
@@ -211,6 +233,18 @@ function strictConvertFactory(
       return cast("cast", value, types.jsValue) as unknown as Value<T>;
     }
 
+    // Narrow to child type.
+    if (
+      value.isPointerTo(types.jsValue) &&
+      !toType.isPointerTo(types.jsValue) &&
+      toType.isPointer() &&
+      // QQQ: fix typing
+      (toType as any).isPointerTo(JsValueType)
+    ) {
+      // QQQ: check that typing is compatible via IR (jsType === 8 or throw).
+      return cast("jsv_to_obj", value, toType.toType) as unknown as Value<T>;
+    }
+
     // Unbox.
     if (
       !toType.isPointer() &&
@@ -251,10 +285,35 @@ function addFactory(builder: llvm.IRBuilder) {
   };
 }
 
+function subFactory(builder: llvm.IRBuilder) {
+  return <T extends IntType<any>>(name: string, a: Value<T>, b: Value<T>) => {
+    const res = builder.CreateSub(a.llValue, b.llValue, name);
+    return new Value(a.type, res);
+  };
+}
+
 function icmpEqFactory(types: Types, builder: llvm.IRBuilder) {
   return <T extends IntType<any>>(name: string, a: Value<T>, b: Value<T>) => {
     const res = builder.CreateICmpEQ(a.llValue, b.llValue, name);
     return new Value(types.bool, res);
+  };
+}
+
+function gepArrayFactory(builder: llvm.IRBuilder) {
+  return <T extends Type>(
+    name: string,
+    ptr: Pointer<T>,
+    index: Value<IntType<any>>
+  ): Pointer<T> => {
+    return new Pointer(
+      ptr.type.toType,
+      builder.CreateGEP(
+        ptr.type.toType.llType,
+        ptr.llValue,
+        [index.llValue],
+        name
+      )
+    );
   };
 }
 
@@ -267,23 +326,18 @@ function loadFactory(builder: llvm.IRBuilder) {
   };
 }
 
+function storeFactory(builder: llvm.IRBuilder) {
+  return <T extends Type>(ptr: Pointer<T>, value: Value<T>) => {
+    builder.CreateStore(value.llValue, ptr.llValue);
+  };
+}
+
 function loadUnboxedFactory(builder: llvm.IRBuilder) {
   return <T extends Type & BoxedType<any>>(ptr: Pointer<T>) => {
     const toType = ptr.type.toType;
     return toType.loadUnboxed(builder, ptr);
   };
 }
-
-// function storeFactory(builder: llvm.IRBuilder) {
-//   return <T extends Type>(ptr: Pointer<T>, value: Value<T>) => {
-//     const toType = ptr.type.toType;
-//     const res = builder.CreateLoad(
-//       toType.llType,
-//       ptr.llValue
-//     );
-//     return new Value(toType, res);
-//   };
-// }
 
 function storeBoxedFactory(builder: llvm.IRBuilder) {
   return <T extends Type & BoxedType<any>>(
@@ -354,5 +408,26 @@ function switchBrFactory(builder: llvm.IRBuilder) {
       // QQQ: remove cast to ConstantInt
       st.addCase(c.on.llValue as llvm.ConstantInt, c.block);
     }
+  };
+}
+
+interface PhiBr<T extends Type> {
+  value: Value<T>;
+  addIncoming(value: Value<T>, block: llvm.BasicBlock);
+}
+
+function phiBrFactory(builder: llvm.IRBuilder) {
+  return <T extends IntType<any>>(
+    name: string,
+    type: T,
+    branchCount: number
+  ): PhiBr<T> => {
+    const phi = builder.CreatePHI(type.llType, branchCount, name);
+    return {
+      value: new Value(type, phi),
+      addIncoming(value: Value<T>, block: llvm.BasicBlock) {
+        phi.addIncoming(value.llValue, block);
+      },
+    };
   };
 }

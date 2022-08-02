@@ -2,6 +2,8 @@ import llvm from "llvm-bindings";
 import { I32Type, Pointer, Value } from "./base";
 import { StructFields, StructType } from "./struct";
 
+// TODO: move to jslib
+
 export enum JsType {
   UNKNOWN = -1,
   UDNEFINED = 0,

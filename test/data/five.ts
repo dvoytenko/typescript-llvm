@@ -4,6 +4,6 @@ function add(obj: {a: number; b: number}) {
 }
 
 export function main() {
-  console.log('add({a: 3, b: 4):', add({a: 3, b: 4}));
+  console.log('add({b: 3, a: 4}):', add({b: 3, a: 4}));
   return 0;
 }

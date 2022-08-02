@@ -4,7 +4,10 @@ import { BoolType } from "./bool";
 import { FunctionType } from "./func";
 import { JsNullType } from "./jsnull";
 import { JsNumberType } from "./jsnumber";
+import { JsObject } from "./jsobject";
+import { JsString } from "./jsstring";
 import { JsUnknownType } from "./jsvalue";
+import { JsvMap } from "./jsvmap";
 import { StructFields, StructType } from "./struct";
 
 export interface Types {
@@ -25,10 +28,16 @@ export interface Types {
   jsValue: JsUnknownType;
   jsNull: JsNullType;
   jsNumber: JsNumberType;
+  jsString: JsString;
+  jsObject: JsObject;
+  jsvMap: JsvMap;
 }
 
 export function types(context: llvm.LLVMContext): Types {
   // TODO: singleton
+  const jsValue = new JsUnknownType(context);
+  const jsString = new JsString(context);
+  const jsvMap = new JsvMap(context, jsString, jsValue);
   return {
     context,
     i8: new I8Type(context),
@@ -42,8 +51,11 @@ export function types(context: llvm.LLVMContext): Types {
       retType: Ret,
       args: Args
     ) => new FunctionType(context, retType, args),
-    jsValue: new JsUnknownType(context),
+    jsValue,
     jsNull: new JsNullType(context),
     jsNumber: new JsNumberType(context),
+    jsString,
+    jsObject: new JsObject(context, jsvMap),
+    jsvMap,
   };
 }
