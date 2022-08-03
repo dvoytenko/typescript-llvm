@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include "jsstring.h"
 
 void jsString_init(JsString* ptr, int length, char* chars) {
@@ -6,14 +7,14 @@ void jsString_init(JsString* ptr, int length, char* chars) {
   ptr->chars = chars;
 }
 
-int jsString_equals(JsString* s1, JsString* s2) {
+bool jsString_equals(JsString* s1, JsString* s2) {
   if (s1->length != s2->length) {
-    return 0;
+    return false;
   }
   for (int i = 0; i < s1->length; i++) {
     if (s1->chars[i] != s2->chars[i]) {
-      return 0;
+      return false;
     }
   }
-  return 1;
+  return true;
 }

@@ -10,6 +10,7 @@ import {
   PointerType,
   Type,
   Value,
+  VoidType,
 } from "../types/base";
 import { BoolType } from "../types/bool";
 import { FunctionArgValues, FunctionType } from "../types/func";
@@ -88,6 +89,10 @@ export interface Instr {
     func: Function<Ret, Args>,
     args: FunctionArgValues<Args>
   ) => Value<Ret>;
+  callVoid: <Ret extends VoidType, Args extends [...Type[]]>(
+    func: Function<Ret, Args>,
+    args: FunctionArgValues<Args>
+  ) => void;
   // Branching.
   br: (dest: llvm.BasicBlock) => void;
   condBr: (
@@ -143,6 +148,7 @@ export function instrFactory(
     insertPoint: (block: llvm.BasicBlock) => builder.SetInsertPoint(block),
     ret: retFactory(builder),
     call: callFactory(builder),
+    callVoid: callVoidFactory(builder),
     br: brFactory(builder),
     condBr: condBrFactory(builder),
     switchBr: switchBrFactory(builder),
@@ -388,6 +394,18 @@ function callFactory(builder: llvm.IRBuilder) {
       name
     );
     return new Value(func.type.retType, res);
+  };
+}
+
+function callVoidFactory(builder: llvm.IRBuilder) {
+  return <Ret extends VoidType, Args extends [...Type[]]>(
+    func: Function<Ret, Args>,
+    args: FunctionArgValues<Args>
+  ) => {
+    builder.CreateCall(
+      func.llFunc,
+      args.map((v) => v.llValue)
+    );
   };
 }
 

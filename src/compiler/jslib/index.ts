@@ -2,22 +2,18 @@ import { Debug } from "../debug";
 import { Instr } from "../instr";
 import { Function } from "../instr/func";
 import { Types } from "../types";
-import { I32Type, Pointer, PointerType, Value } from "../types/base";
+import { I32Type, Pointer, PointerType, Value, VoidType } from "../types/base";
 import { BoolType } from "../types/bool";
 import { JsNullType } from "../types/jsnull";
 import { JsNumberType } from "../types/jsnumber";
+import { JsCustObject, JsObject } from "../types/jsobject";
+import { JsString } from "../types/jsstring";
 import {
-  JsObject,
-  JsObjectHelper,
-  jsObjectHelperFactory,
-} from "../types/jsobject";
-import {
-  JsString,
-  JsStringHelper,
-  jsStringHelperFactory,
-} from "../types/jsstring";
-import { JsType, JsUnknownType, JsUnknownType2 } from "../types/jsvalue";
-import { JsvMap, JsvMapHelper, jsvMapHelperFactory } from "../types/jsvmap";
+  JsType,
+  JsUnknownType,
+  JsUnknownType2,
+  JsValueType,
+} from "../types/jsvalue";
 
 export interface JslibValues {
   jsNull: Pointer<JsNullType>;
@@ -52,6 +48,19 @@ interface StrictEqInstr {
   (name: string, a: Value<any>, b: Value<any>): Value<BoolType>;
 }
 
+interface JsObjectLib {
+  create(jsType: JsCustObject): Pointer<JsCustObject>;
+  getField(
+    ptr: Pointer<JsObject>,
+    key: Pointer<JsValueType<any, any>>
+  ): Pointer<JsValueType<any, any>>;
+  setField(
+    ptr: Pointer<JsObject>,
+    key: Pointer<JsValueType<any, any>>,
+    value: Pointer<JsValueType<any, any>>
+  ): void;
+}
+
 export interface Jslib {
   instr: Instr;
   values: JslibValues;
@@ -59,9 +68,7 @@ export interface Jslib {
   add: AddInstr;
   sub: SubInstr;
   strictEq: StrictEqInstr;
-  jsvMapHelper: (ptr: Pointer<JsvMap>) => JsvMapHelper;
-  jsStringHelper: (ptr: Pointer<JsString>) => JsStringHelper;
-  jsObjectHelper: (ptr: Pointer<JsObject>) => JsObjectHelper;
+  jsObject: JsObjectLib;
 }
 
 export interface Gen {
@@ -79,25 +86,10 @@ export function jslibFactory(gen: Gen): Jslib {
     ).ptr,
   };
   const funcs: JslibFunctions = {
-    addAny: addAnyFunctionFactory(gen, values),
-    subAny: subAnyFunctionFactory(gen, values),
+    addAny: addAnyFunctionFactory(gen),
+    subAny: subAnyFunctionFactory(gen),
     strictEqAny: strictEqAnyFunctionFactory(gen),
   };
-  const jsStringHelper = jsStringHelperFactory(gen.types, gen.instr);
-  const jsvMapHelper = jsvMapHelperFactory(
-    gen.types,
-    gen.instr,
-    gen.debug,
-    values,
-    jsStringHelper
-  );
-  const jsObjectHelper = jsObjectHelperFactory(
-    gen.types,
-    gen.instr,
-    gen.debug,
-    values,
-    jsvMapHelper
-  );
   return {
     instr: gen.instr,
     values,
@@ -105,9 +97,7 @@ export function jslibFactory(gen: Gen): Jslib {
     add: addFactory(gen, values, funcs),
     sub: subFactory(gen, values, funcs),
     strictEq: strictEqFactory(gen, values, funcs),
-    jsvMapHelper,
-    jsStringHelper,
-    jsObjectHelper,
+    jsObject: jsObjectFactory(gen),
   };
 }
 
@@ -145,68 +135,19 @@ function addFactory(
   };
 }
 
-function addAnyFunctionFactory({ instr, types }: Gen, values: JslibValues) {
-  const { i32, jsValue, jsNumber } = types;
+function addAnyFunctionFactory({ instr, types }: Gen) {
+  const { jsValue } = types;
   const jsValuePtr = jsValue.pointerOf();
-  const funcType = types.func<PointerType<JsUnknownType2>, AddAnyArgs>(
-    jsValuePtr as PointerType<JsUnknownType2>,
-    [
+  const func = instr.func(
+    "jsValue_add",
+    types.func<PointerType<JsUnknownType2>, AddAnyArgs>(
       jsValuePtr as PointerType<JsUnknownType2>,
-      jsValuePtr as PointerType<JsUnknownType2>,
-    ]
+      [
+        jsValuePtr as PointerType<JsUnknownType2>,
+        jsValuePtr as PointerType<JsUnknownType2>,
+      ]
+    )
   );
-  const func = instr.func("jslib/add", funcType);
-  instr.insertPoint(instr.block(func, "entry"));
-
-  const uptrA = func.args[0];
-  const uptrB = func.args[1];
-
-  // TODO: remove builder
-  const jsTypeA = uptrA.type.toType.loadJsType(instr.builder, uptrA);
-  const jsTypeB = uptrA.type.toType.loadJsType(instr.builder, uptrB);
-  // debug.printf('ADD: TYPES: %d %d', [jsTypeA, jsTypeB]);
-
-  const isNumA = instr.icmpEq(
-    "is_num_a",
-    jsTypeA,
-    i32.constValue(JsType.NUMBER)
-  );
-  const isNumB = instr.icmpEq(
-    "is_num_b",
-    jsTypeB,
-    i32.constValue(JsType.NUMBER)
-  );
-
-  const num1Block = instr.block(func, "num1");
-  const num2Block = instr.block(func, "num2");
-  const unkBlock = instr.block(func, "unk");
-
-  instr.condBr(isNumA, num1Block, unkBlock);
-
-  instr.insertPoint(num1Block);
-  instr.condBr(isNumB, num2Block, unkBlock);
-
-  instr.insertPoint(num2Block);
-
-  const ptrA = instr.cast("jsn_a", uptrA, jsNumber);
-  const ptrB = instr.cast("jsn_b", uptrB, jsNumber);
-
-  const unboxedA = instr.loadUnboxed(ptrA);
-  const unboxedB = instr.loadUnboxed(ptrB);
-
-  const computedSum = instr.add("sum", unboxedA, unboxedB);
-
-  const ptrSum = instr.malloc("jsn_sum", types.jsNumber);
-  instr.storeBoxed(ptrSum, computedSum);
-
-  instr.ret(func, instr.cast("sum_jsv", ptrSum, jsValue));
-
-  instr.insertPoint(unkBlock);
-
-  // TODO: string, other types, toPrimitive, undefined.
-  // debug.printf('ADD: RETURN NULL BY DEFAULT', []);
-  instr.ret(func, instr.cast("jsv_null", values.jsNull, jsValue));
-
   return func;
 }
 
@@ -244,67 +185,19 @@ function subFactory(
   };
 }
 
-function subAnyFunctionFactory({ instr, types }: Gen, values: JslibValues) {
-  const { i32, jsValue, jsNumber } = types;
+function subAnyFunctionFactory({ instr, types }: Gen) {
+  const { jsValue } = types;
   const jsValuePtr = jsValue.pointerOf();
-  const funcType = types.func<PointerType<JsUnknownType2>, SubAnyArgs>(
-    jsValuePtr as PointerType<JsUnknownType2>,
-    [
+  return instr.func(
+    "jsValue_sub",
+    types.func<PointerType<JsUnknownType2>, SubAnyArgs>(
       jsValuePtr as PointerType<JsUnknownType2>,
-      jsValuePtr as PointerType<JsUnknownType2>,
-    ]
+      [
+        jsValuePtr as PointerType<JsUnknownType2>,
+        jsValuePtr as PointerType<JsUnknownType2>,
+      ]
+    )
   );
-  const func = instr.func("jslib/sub", funcType);
-  instr.insertPoint(instr.block(func, "entry"));
-
-  const uptrA = func.args[0];
-  const uptrB = func.args[1];
-
-  // TODO: remove builder
-  const jsTypeA = uptrA.type.toType.loadJsType(instr.builder, uptrA);
-  const jsTypeB = uptrA.type.toType.loadJsType(instr.builder, uptrB);
-
-  const isNumA = instr.icmpEq(
-    "is_num_a",
-    jsTypeA,
-    i32.constValue(JsType.NUMBER)
-  );
-  const isNumB = instr.icmpEq(
-    "is_num_b",
-    jsTypeB,
-    i32.constValue(JsType.NUMBER)
-  );
-
-  const num1Block = instr.block(func, "num1");
-  const num2Block = instr.block(func, "num2");
-  const unkBlock = instr.block(func, "unk");
-
-  instr.condBr(isNumA, num1Block, unkBlock);
-
-  instr.insertPoint(num1Block);
-  instr.condBr(isNumB, num2Block, unkBlock);
-
-  instr.insertPoint(num2Block);
-
-  const ptrA = instr.cast("jsn_a", uptrA, jsNumber);
-  const ptrB = instr.cast("jsn_b", uptrB, jsNumber);
-
-  const unboxedA = instr.loadUnboxed(ptrA);
-  const unboxedB = instr.loadUnboxed(ptrB);
-
-  const computedSub = instr.sub("sub", unboxedA, unboxedB);
-
-  const ptrSub = instr.malloc("jsn_sub", types.jsNumber);
-  instr.storeBoxed(ptrSub, computedSub);
-
-  instr.ret(func, instr.cast("sub_jsv", ptrSub, jsValue));
-
-  instr.insertPoint(unkBlock);
-
-  // TODO: string, other types, toPrimitive, undefined.
-  instr.ret(func, instr.cast("jsv_null", values.jsNull, jsValue));
-
-  return func;
 }
 
 function strictEqFactory(
@@ -355,37 +248,67 @@ function strictEqFactory(
 function strictEqAnyFunctionFactory({ instr, types }: Gen) {
   const { bool, jsValue } = types;
   const jsValuePtr = jsValue.pointerOf();
-  const funcType = types.func<BoolType, AddAnyArgs>(bool, [
-    jsValuePtr as PointerType<JsUnknownType2>,
-    jsValuePtr as PointerType<JsUnknownType2>,
-  ]);
-  const func = instr.func("jslib/stricteq", funcType);
+  return instr.func(
+    "jsValue_strictEq",
+    types.func<BoolType, AddAnyArgs>(bool, [
+      jsValuePtr as PointerType<JsUnknownType2>,
+      jsValuePtr as PointerType<JsUnknownType2>,
+    ])
+  );
+}
 
-  instr.insertPoint(instr.block(func, "entry"));
+function jsObjectFactory({ types, instr }: Gen): JsObjectLib {
+  const { voidType, jsValue, jsString, jsObject } = types;
+  const jsStringPtr = jsString.pointerOf();
+  const jsObjectPtr = jsObject.pointerOf();
+  const jsValuePtr = jsValue.pointerOf();
 
-  const uptrA = func.args[0];
-  const uptrB = func.args[1];
+  const keyToString = (key: Pointer<JsValueType<any, any>>) =>
+    instr.strictConvert(key, types.jsString.pointerOf());
 
-  // TODO: remove builder
-  const jsTypeA = uptrA.type.toType.loadJsType(instr.builder, uptrA);
-  const jsTypeB = uptrA.type.toType.loadJsType(instr.builder, uptrB);
+  const jsObject_init = instr.func(
+    "jsObject_init",
+    types.func(voidType, [jsObjectPtr])
+  );
 
-  const isSameJsType = instr.icmpEq("is_same_jstype", jsTypeA, jsTypeB);
+  const jsObject_getField = instr.func(
+    "jsObject_getField",
+    types.func(jsValuePtr, [jsObjectPtr, jsStringPtr])
+  );
+  const jsObject_setField = instr.func<
+    VoidType,
+    [
+      PointerType<JsObject>,
+      PointerType<JsString>,
+      PointerType<JsValueType<any, any>>
+    ]
+  >(
+    "jsObject_setField",
+    types.func(voidType, [jsObjectPtr, jsStringPtr, jsValuePtr])
+  );
 
-  const falseBlock = instr.block(func, "false");
-  const sameJsTypeBlock = instr.block(func, "same_jstype");
-
-  instr.condBr(isSameJsType, sameJsTypeBlock, falseBlock);
-
-  instr.insertPoint(sameJsTypeBlock);
-
-  // QQQQ: not correct.
-  instr.ret(func, bool.constValue(false));
-
-  instr.insertPoint(falseBlock);
-
-  // TODO: string, other types, toBoolean, undefined.
-  instr.ret(func, bool.constValue(false));
-
-  return func;
+  return {
+    create(jsType: JsCustObject) {
+      const ptr = instr.malloc("jso", jsType);
+      const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
+      instr.callVoid(jsObject_init, [ptr0]);
+      // QQQQ: zeroinitializer for cust?
+      return ptr;
+    },
+    getField(ptr: Pointer<JsObject>, key: Pointer<JsValueType<any, any>>) {
+      const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
+      return instr.call("get_field", jsObject_getField, [
+        ptr0,
+        keyToString(key),
+      ]);
+    },
+    setField(
+      ptr: Pointer<JsObject>,
+      key: Pointer<JsValueType<any, any>>,
+      value: Pointer<JsValueType<any, any>>
+    ) {
+      const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
+      instr.callVoid(jsObject_setField, [ptr0, keyToString(key), value]);
+    },
+  };
 }

@@ -1,5 +1,5 @@
 import llvm from "llvm-bindings";
-import { I32Type, I64Type, I8Type, PointerType, Type } from "./base";
+import { I32Type, I64Type, I8Type, PointerType, Type, VoidType } from "./base";
 import { BoolType } from "./bool";
 import { FunctionType } from "./func";
 import { JsNullType } from "./jsnull";
@@ -12,6 +12,7 @@ import { StructFields, StructType } from "./struct";
 
 export interface Types {
   context: llvm.LLVMContext;
+  voidType: VoidType;
   i8: I8Type;
   i32: I32Type;
   i64: I64Type;
@@ -40,6 +41,7 @@ export function types(context: llvm.LLVMContext): Types {
   const jsvMap = new JsvMap(context, jsString, jsValue);
   return {
     context,
+    voidType: new VoidType(context),
     i8: new I8Type(context),
     i32: new I32Type(context),
     i64: new I64Type(context),

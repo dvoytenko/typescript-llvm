@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "jsobject.h"
 #include "jsvmap.h"
-#include "tostring.h"
+#include "debug.h"
 
 void jsObject_init(JsObject* ptr) {
   ptr->jsType = OBJECT;
@@ -10,8 +10,6 @@ void jsObject_init(JsObject* ptr) {
 }
 
 JsValue* jsObject_getField(JsObject* ptr, JsString* key) {
-  printf("getField: HERE\n");
-  printf("getField: %s\n", jsValue_toString((JsValue*) key));
   if (!ptr->map) {
     return NULL;
   }

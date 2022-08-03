@@ -6,7 +6,7 @@ import { compile } from '../src/compiler';
 import { compile as compile2} from '../src/compiler/compiler2';
 import { compile as compile3} from '../src/compiler/compiler3';
 
-const TEST = 'three';
+const TEST = 'four';
 
 console.log('Any specific test specified? ', process.argv[2]);
 
@@ -62,11 +62,7 @@ async function test(file: string): Promise<void> {
   const result = await execLl(llLinkedFile);
   console.log(`${'\x1b[34m'}RESULT:\n${result}`, '\x1b[0m');
 
-  /* QQQQ
-  const llFile = path.resolve(DATA_DIR, file.replace('.ts', '.ll'));
-  const result = await execLl(llFile);
-  console.log('RESULT: ', result);
-
+  /* QQQ
   const origFile = path.resolve(DATA_DIR, file.replace('.ts', '.res'));
   const resultFile = path.resolve(workDir, path.basename(file, '.ts') + '.res');
   console.log('RESULT FILE: ', resultFile);

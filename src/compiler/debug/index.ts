@@ -2,7 +2,7 @@ import llvm from "llvm-bindings";
 import { Instr } from "../instr";
 import { Types } from "../types";
 import { I8Type, IntType, Pointer, PointerType, Value } from "../types/base";
-import { JsType, JsValueType } from "../types/jsvalue";
+import { JsValueType } from "../types/jsvalue";
 
 export interface Debug {
   printf: (fmt: string, args: (Value<any> | llvm.Value)[]) => void;
@@ -31,64 +31,15 @@ function debugValueFactory(
 ) {
   const { builder } = instr;
 
-  const debugJsvFunc = (() => {
-    const functionType = types.func(types.i8.pointerOf(), [
-      types.jsValue.pointerOf(),
-    ]);
-    const func = instr.func("debug_jsv", functionType);
-    instr.insertPoint(instr.block(func, "entry"));
-
-    const arg = func.args[0];
-    const jsType = arg.type.toType.loadJsType(builder, arg);
-    const strPtr = instr.malloc("s", types.i8, types.i64.constValue(1000));
-
-    const nullBlock = instr.block(func, "jsnull");
-    const numBlock = instr.block(func, "jsnum");
-    const unkBlock = instr.block(func, "jsunk");
-    // TODO...
-
-    instr.switchBr(jsType, unkBlock, [
-      {
-        on: types.i32.constValue(JsType.NULL),
-        block: nullBlock,
-      },
-      {
-        on: types.i32.constValue(JsType.NUMBER),
-        block: numBlock,
-      },
-    ]);
-
-    instr.insertPoint(nullBlock);
-    const fmtNull = instr.globalStringPtr("fmt.jsnull", "JSV<null>");
-    instr.ret(func, fmtNull);
-
-    instr.insertPoint(numBlock);
-    const ptrNum = instr.cast("jsn", arg, types.jsNumber);
-    const unboxedNum = instr.loadUnboxed(ptrNum);
-    const fmtNum = instr.globalStringPtr("fmt.jsnum", "JSV<number %d>");
-    builder.CreateCall(
-      snprintf,
-      [
-        strPtr.llValue,
-        builder.getInt32(1000),
-        builder.CreateInBoundsGEP(builder.getInt8PtrTy(), fmtNum.llValue, []),
-        unboxedNum.llValue,
-      ],
-      "deb"
-    );
-    instr.ret(func, strPtr);
-
-    instr.insertPoint(unkBlock);
-    const fmtJsv = instr.globalStringPtr("fmt.jsv", "JSV<?>");
-    instr.ret(func, fmtJsv);
-
-    return func;
-  })();
+  const debugJsvFunc = instr.func(
+    "jsValue_debug",
+    types.func(types.i8.pointerOf(), [types.jsValue.pointerOf()])
+  );
 
   return (value: Value<any>) => {
     const strPtr = instr.malloc("s", types.i8, types.i64.constValue(1000));
     if (value.type instanceof IntType) {
-      const fmtInt = builder.CreateGlobalStringPtr("(i%d %d)", "fmt.int");
+      const fmtInt = builder.CreateGlobalStringPtr("<i%d %d>", "fmt.int");
       builder.CreateCall(
         snprintf,
         [

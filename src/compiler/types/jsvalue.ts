@@ -68,6 +68,6 @@ export type JsUnknownType2 = JsValueType<any, {}>;
 
 export class JsUnknownType extends JsValueType<any, {}> {
   constructor(context: llvm.LLVMContext) {
-    super(context, JsType.UNKNOWN, {});
+    super(context, JsType.UNKNOWN, {}, "struct.JsValue");
   }
 }

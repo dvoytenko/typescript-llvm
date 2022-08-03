@@ -131,8 +131,7 @@ export function tsToGType(
 }
 
 function logType(tsType: ts.Type, { checker }: CompilerContext) {
-  // console.log('QQQQ: TYPE: ', tsType);
-  console.log("QQQQ: TYPE FLAGS: ", {
+  console.log("QQQ: TYPE FLAGS: ", {
     flags: tsType.getFlags(),
     symbol: tsType.getSymbol()
       ? checker.symbolToString(tsType.getSymbol()!)

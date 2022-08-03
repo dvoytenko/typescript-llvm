@@ -1,6 +1,7 @@
 #ifndef __JSSTRING_H__
 #define __JSSTRING_H__
 
+#include <stdbool.h>
 #include "jsvalue.h"
 
 typedef struct JsString {
@@ -13,6 +14,6 @@ typedef struct JsString {
 } JsString;
 
 void jsString_init(JsString* ptr, int length, char* chars);
-int jsString_equals(JsString* s1, JsString* s2);
+bool jsString_equals(JsString* s1, JsString* s2);
 
 #endif

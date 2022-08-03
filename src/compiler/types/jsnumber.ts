@@ -6,6 +6,7 @@ export class JsNumberType
   extends JsValueType<
     JsType.NUMBER,
     {
+      // TODO: switch to double
       value: I32Type;
     }
   >
@@ -14,7 +15,12 @@ export class JsNumberType
   public readonly unboxedType: I32Type;
 
   constructor(context: llvm.LLVMContext) {
-    super(context, JsType.NUMBER, { value: new I32Type(context) });
+    super(
+      context,
+      JsType.NUMBER,
+      { value: new I32Type(context) },
+      "struct.JsNumber"
+    );
     this.unboxedType = new I32Type(context);
   }
 
@@ -70,7 +76,7 @@ export class JsNumberType
     if (typeof unboxed === "number") {
       unboxed = i32.constValue(unboxed);
     }
-    // QQQQ: can we ever guarantee this to be a constant value?
+    // QQQ: can we ever guarantee this to be a constant value?
     return this.createConst({
       jsType: new Value(i32, llvm.ConstantInt.get(i32.llType, this.jsType)),
       value: unboxed,

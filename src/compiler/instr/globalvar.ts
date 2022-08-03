@@ -12,7 +12,7 @@ export class GlobalVar<T extends Type> {
     public readonly value: Value<T>
   ) {
     this.type = value.type;
-    // QQQQ: fix llvm.Constant cast!?
+    // QQQ: fix llvm.Constant cast!?
     this.llVar = new llvm.GlobalVariable(
       module,
       /* type */ this.type.llType,

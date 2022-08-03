@@ -151,6 +151,12 @@ export class Pointer<T extends Type> extends Value<PointerType<T>> {
   }
 }
 
+export class VoidType extends Type {
+  constructor(context: llvm.LLVMContext) {
+    super(context, llvm.Type.getVoidTy(context));
+  }
+}
+
 export class IntType<B extends IntBits> extends Type {
   constructor(context: llvm.LLVMContext, public readonly bits: B) {
     super(context, llvm.IntegerType.get(context, bits));

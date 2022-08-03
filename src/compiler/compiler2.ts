@@ -10,7 +10,7 @@ import { StatementHandlers, statements } from "./ts/statements";
 import { tsToGTypeUnboxed } from "./ts/types";
 import { types as typesFactory, type Types } from "./types";
 import { Value } from "./types/base";
-import { JsObject } from "./types/jsobject";
+import { JsCustObject, JsObject } from "./types/jsobject";
 import { StructFields, StructType } from "./types/struct";
 
 export function compile(file: string): string {
@@ -251,7 +251,7 @@ class Compiler {
         shape
       );
 
-      objType = new JsObject(types.context, types.jsvMap, key, shapeType);
+      objType = new JsCustObject(types.context, types.jsvMap, key, shapeType);
       this.objTypes.set(key, objType);
     }
     return objType;

@@ -1,7 +1,7 @@
 import ts from "typescript";
 import { CompilerContext } from "../../context";
 import { PointerType, Type, Value } from "../../types/base";
-import { JsObject } from "../../types/jsobject";
+import { JsCustObject } from "../../types/jsobject";
 import { TsFunction } from "../func";
 import { tsToGType, tsToGTypeUnboxed } from "../types";
 
@@ -168,15 +168,14 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
   const { types, instr, jslib, checker, genExpr } = context;
   return (node: ts.ObjectLiteralExpression) => {
     const tsType = checker.getTypeAtLocation(node);
-    console.log("QQQQ: obj type: ", checker.typeToString(tsType));
-    const jsType = (tsToGType(tsType, node, context) as PointerType<JsObject>)
-      .toType;
-    console.log("QQQQ: obj gtype: ", jsType);
+    console.log("QQQ: obj type: ", checker.typeToString(tsType));
+    const jsType = (
+      tsToGType(tsType, node, context) as PointerType<JsCustObject>
+    ).toType;
+    console.log("QQQ: obj gtype: ", jsType);
 
     // TODO: better name from source.
-    const ptr = instr.malloc("jso", jsType);
-    const helper = jslib.jsObjectHelper(ptr);
-    helper.init();
+    const ptr = jslib.jsObject.create(jsType);
     const custPtr = jsType.gep(instr.builder, ptr, "cust");
     for (const prop of node.properties) {
       const propAssignment = prop as ts.PropertyAssignment;
@@ -190,20 +189,20 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
 
       const propName = propAssignment.name.text;
 
-      //QQQQQ
-      // if (jsType.cust?.fieldNames.includes(propName)) {
-      //   const propValueType = custPtr.type.toType.fields[propName] as Type;
-      //   const propValueConv = instr.strictConvert(propValue, propValueType);
-      //   jsType.cust.store(instr.builder, custPtr, propName, propValueConv);
-      // } else {
-      const keyStr = types.jsString.constValue(instr, propName);
-      const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
-      const propValuePtr = instr.strictConvert(
-        propValue,
-        types.jsValue.pointerOf()
-      );
-      helper.setField(keyPtr, propValuePtr);
-      // }
+      // QQQ: debug map vs struct access
+      if (jsType.cust?.fieldNames.includes(propName)) {
+        const propValueType = custPtr.type.toType.fields[propName] as Type;
+        const propValueConv = instr.strictConvert(propValue, propValueType);
+        jsType.cust.store(instr.builder, custPtr, propName, propValueConv);
+      } else {
+        const keyStr = types.jsString.constValue(instr, propName);
+        const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
+        const propValuePtr = instr.strictConvert(
+          propValue,
+          types.jsValue.pointerOf()
+        );
+        jslib.jsObject.setField(ptr, keyPtr, propValuePtr);
+      }
     }
     return ptr;
   };
@@ -212,7 +211,6 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
 function propertyAccessExpressionFactory(context: CompilerContext) {
   const { types, instr, jslib, checker, genExpr } = context;
   return (node: ts.PropertyAccessExpression) => {
-    const jsObject = types.jsObject;
     const target = genExpr(node.expression);
     if (!(target instanceof Value<any>)) {
       throw new Error("cannot use value for object access expression");
@@ -223,11 +221,11 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
     if (symbol) {
       const decl = symbol.valueDeclaration!;
       const declType = checker.getTypeAtLocation(decl.parent);
-      console.log("QQQQQ: prop access type: ", checker.typeToString(declType));
+      console.log("QQQ: prop access type: ", checker.typeToString(declType));
       const jsType = (
-        tsToGType(declType, node, context) as PointerType<JsObject>
+        tsToGType(declType, node, context) as PointerType<JsCustObject>
       ).toType;
-      console.log("QQQQ: prop access gtype: ", jsType);
+      console.log("QQQ: prop access gtype: ", jsType);
 
       if (jsType.cust?.fieldNames.includes(propName)) {
         const objPtr = instr.strictConvert(target, jsType.pointerOf());
@@ -237,10 +235,8 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
     }
 
     // Fallback to map read.
-    const objPtr = instr.strictConvert(target, jsObject.pointerOf());
-    const helper = jslib.jsObjectHelper(objPtr);
     const keyStr = types.jsString.constValue(instr, propName);
     const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
-    return helper.getField(keyPtr);
+    return jslib.jsObject.getField(target, keyPtr);
   };
 }

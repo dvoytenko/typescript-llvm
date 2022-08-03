@@ -24,5 +24,7 @@ typedef struct JsValue {
   enum JsType jsType;
 } JsValue;
 
+static const JsValue JSNULL_VALUE = {.jsType = NULLV};
+static const JsValue* JSNULL = &JSNULL_VALUE;
 
 #endif

@@ -13,7 +13,7 @@
     "test": "npm run make && npm run build && node ./out/test/index.js",
     "test:watch": "nodemon -e ts,json,c,h --ignore out --ignore dist --exec \"npm run test\"",
     "make": "make || exit 1",
-    "make:watch": "nodemon -e c,h --ignore out --ignore dist --exec \"npm run make\""
+    "make:watch": "nodemon -e c,h --ignore out --ignore dist --exec \"npm run make; lli out/infra/test-linked.ll\""
   },
   "author": "",
   "license": "ISC",

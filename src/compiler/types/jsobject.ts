@@ -6,40 +6,41 @@ import { JslibValues } from "../jslib";
 import { I32Type, Pointer, PointerType } from "./base";
 import { JsString } from "./jsstring";
 import { JsType, JsUnknownType, JsValueType } from "./jsvalue";
-import { JsvMap, jsvMapHelperFactory } from "./jsvmap";
-import { StructType } from "./struct";
+import { JsvMap } from "./jsvmap";
+import { StructFields, StructType } from "./struct";
 
-export class JsObject extends JsValueType<
-  JsType.OBJECT,
-  {
-    // QQQQ: should be pointer to avoid reserving space when not used!!!
-    map: PointerType<JsvMap>;
-    cust: StructType<any>;
-  }
-> {
+export interface JsObjectFields extends StructFields {
+  map: PointerType<JsvMap>;
+  cust: StructType<any>;
+}
+
+export class JsObject extends JsValueType<JsType.OBJECT, JsObjectFields> {
   constructor(
     context: llvm.LLVMContext,
     jsvMap: JsvMap,
     name?: string,
-    public cust?: StructType<any>
+    more?: StructFields
   ) {
     super(
       context,
       JsType.OBJECT,
       {
         map: jsvMap.pointerOf(),
-        cust: cust ?? new StructType(context, "None", {}),
-      },
-      name
+        ...more,
+      } as JsObjectFields,
+      name ?? "struct.JsObject"
     );
   }
+}
 
-  constr(instr: Instr, types: Types, ptr: Pointer<typeof this>) {
-    this.storePartialStruct(instr.builder, ptr, {
-      jsType: types.i32.constValue(this.jsType),
-    });
-    const mapPtr = instr.malloc("f_map", this.fields.map.toType);
-    this.fields.map.toType.constr(instr, types, mapPtr);
+export class JsCustObject extends JsObject {
+  constructor(
+    context: llvm.LLVMContext,
+    jsvMap: JsvMap,
+    name: string,
+    public cust: StructType<any>
+  ) {
+    super(context, jsvMap, name, { cust });
   }
 }
 
@@ -57,29 +58,15 @@ export function jsObjectHelperFactory(
   types: Types,
   instr: Instr,
   debug: Debug,
-  values: JslibValues,
-  mapHelper: ReturnType<typeof jsvMapHelperFactory>
+  values: JslibValues
 ): (ptr: Pointer<JsObject>) => JsObjectHelper {
   const { jsString, jsvMap } = types;
   // TODO: switch to "open" conversion.
   const keyToString = (key: Pointer<JsValueType<any, any>>) =>
     instr.strictConvert(key, jsString.pointerOf());
 
-  const getField = getFieldFactory(
-    instr,
-    types,
-    values,
-    types.jsObject,
-    mapHelper
-  );
-  const setField = setFieldFactory(
-    instr,
-    types,
-    values,
-    debug,
-    types.jsObject,
-    mapHelper
-  );
+  const getField = getFieldFactory(instr, types, values, types.jsObject);
+  const setField = setFieldFactory(instr, types, values, debug, types.jsObject);
 
   return (ptr: Pointer<JsObject>) => ({
     init() {
@@ -109,37 +96,19 @@ function getFieldFactory(
   instr: Instr,
   types: Types,
   values: JslibValues,
-  jsObject: JsObject,
-  mapHelper: ReturnType<typeof jsvMapHelperFactory>
+  jsObject: JsObject
 ) {
   const { jsValue } = types;
   const jsString = types.jsString;
   const jsStringPtr = jsString.pointerOf();
   const jsValuePtr = jsValue.pointerOf();
-  const funcType = types.func<
-    PointerType<JsUnknownType>,
-    [PointerType<JsObject>, PointerType<JsString>]
-  >(jsValuePtr, [jsObject.pointerOf(), jsStringPtr]);
-  const func = instr.func("jslib/JsObject/getField", funcType);
-  instr.insertPoint(instr.block(func, "entry"));
-
-  const ptr = func.args[0];
-  const keyPtr = func.args[1];
-
-  const noMap = instr.block(func, "no_map");
-  const hasMap = instr.block(func, "has_map");
-
-  const mapPtr = jsObject.load(instr.builder, ptr, "map");
-  const isNull = instr.isNull(mapPtr);
-  instr.condBr(isNull, noMap, hasMap);
-
-  instr.insertPoint(noMap);
-  instr.ret(func, instr.cast("to_jsv", values.jsNull, jsValue));
-
-  instr.insertPoint(hasMap);
-  instr.ret(func, mapHelper(mapPtr).get(keyPtr));
-
-  func.verify();
+  const func = instr.func(
+    "jsObject_getField",
+    types.func<
+      PointerType<JsUnknownType>,
+      [PointerType<JsObject>, PointerType<JsString>]
+    >(jsValuePtr, [jsObject.pointerOf(), jsStringPtr])
+  );
 
   return (
     ptr: Pointer<JsObject>,
@@ -147,25 +116,6 @@ function getFieldFactory(
   ): Pointer<JsValueType<any, any>> => {
     return instr.call("get_field", func, [ptr, key]);
   };
-
-  /*QQQQ
-  const { jsValue } = types;
-  const jsString = types.jsString;
-  const jsStringPtr = jsString.pointerOf();
-  const jsValuePtr = jsValue.pointerOf();
-  const funcType = types.func<
-    PointerType<JsUnknownType>,
-    [PointerType<JsObject>, PointerType<JsString>]
-  >(jsValuePtr, [jsObject.pointerOf(), jsStringPtr]);
-  const func = instr.func("jsObject_getField", funcType);
-
-  return (
-    ptr: Pointer<JsObject>,
-    key: Pointer<JsString>
-  ): Pointer<JsValueType<any, any>> => {
-    return instr.call("get_field", func, [ptr, key]);
-  };
-  */
 }
 
 function setFieldFactory(
@@ -173,55 +123,23 @@ function setFieldFactory(
   types: Types,
   values: JslibValues,
   debug: Debug,
-  jsObject: JsObject,
-  mapHelper: ReturnType<typeof jsvMapHelperFactory>
+  jsObject: JsObject
 ) {
   const { jsValue } = types;
   const jsString = types.jsString;
   const jsStringPtr = jsString.pointerOf();
   const jsValuePtr = jsValue.pointerOf();
-  const funcType = types.func<
-    I32Type,
-    [
-      PointerType<JsObject>,
-      PointerType<JsString>,
-      PointerType<JsValueType<any, any>>
-    ]
-  >(types.i32, [jsObject.pointerOf(), jsStringPtr, jsValuePtr]);
-  const func = instr.func("jslib/JsObject/setField", funcType);
-  instr.insertPoint(instr.block(func, "entry"));
-
-  const ptr = func.args[0];
-  const keyPtr = func.args[1];
-  const valuePtr = func.args[2];
-
-  const noMap = instr.block(func, "no_map");
-  const hasMap = instr.block(func, "has_map");
-
-  const mapPtr = jsObject.load(instr.builder, ptr, "map");
-  const mapPtrPtr = instr.alloca("map_ptr_ptr", mapPtr.type);
-  instr.store(mapPtrPtr, mapPtr);
-  const isNull = instr.isNull(mapPtr);
-  instr.condBr(isNull, noMap, hasMap);
-
-  instr.insertPoint(noMap);
-  const mapType = jsObject.fields.map.toType;
-  const newMapPtr = instr.malloc("map_ptr", mapType);
-  instr.store(mapPtrPtr, newMapPtr);
-  jsObject.storePartialStruct(instr.builder, ptr, {
-    map: newMapPtr,
-  });
-  const entriesPtr = mapType.gep(instr.builder, newMapPtr, "entries");
-  const entriesType = entriesPtr.type.toType;
-  entriesType.initInst(instr, types, entriesPtr, 100);
-  instr.br(hasMap);
-
-  instr.insertPoint(hasMap);
-  const updatedMapPtr = instr.load("upd_map_ptr", mapPtrPtr);
-  mapHelper(updatedMapPtr).set(keyPtr, valuePtr);
-  instr.ret(func, types.i32.constValue(0));
-
-  func.verify();
+  const func = instr.func(
+    "jsObject_setField",
+    types.func<
+      I32Type,
+      [
+        PointerType<JsObject>,
+        PointerType<JsString>,
+        PointerType<JsValueType<any, any>>
+      ]
+    >(types.i32, [jsObject.pointerOf(), jsStringPtr, jsValuePtr])
+  );
 
   return (
     ptr: Pointer<JsObject>,
@@ -230,28 +148,4 @@ function setFieldFactory(
   ) => {
     instr.call("set_field", func, [ptr, key, value]);
   };
-
-  /*QQQQ
-  const { jsValue } = types;
-  const jsString = types.jsString;
-  const jsStringPtr = jsString.pointerOf();
-  const jsValuePtr = jsValue.pointerOf();
-  const funcType = types.func<
-    I32Type,
-    [
-      PointerType<JsObject>,
-      PointerType<JsString>,
-      PointerType<JsValueType<any, any>>
-    ]
-  >(types.i32, [jsObject.pointerOf(), jsStringPtr, jsValuePtr]);
-  const func = instr.func("jsObject_setField", funcType);
-
-  return (
-    ptr: Pointer<JsObject>,
-    key: Pointer<JsString>,
-    value: Pointer<JsValueType<any, any>>
-  ) => {
-    instr.call("set_field", func, [ptr, key, value]);
-  };
-  */
 }
