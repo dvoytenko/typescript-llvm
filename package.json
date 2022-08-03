@@ -10,8 +10,10 @@
     "build": "tsc --project tsconfig.json",
     "debug_ast": "npm run build && node ./out/src/debug_ast.js",
     "debug_ast:watch": "nodemon -e ts,json --ignore out --ignore dist --exec \"npm run debug_ast\"",
-    "test": "npm run build && node ./out/test/index.js",
-    "test:watch": "nodemon -e ts,json --ignore out --ignore dist --exec \"npm run test\""
+    "test": "npm run make && npm run build && node ./out/test/index.js",
+    "test:watch": "nodemon -e ts,json,c,h --ignore out --ignore dist --exec \"npm run test\"",
+    "make": "make || exit 1",
+    "make:watch": "nodemon -e c,h --ignore out --ignore dist --exec \"npm run make\""
   },
   "author": "",
   "license": "ISC",

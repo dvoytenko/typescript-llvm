@@ -6,7 +6,7 @@ import { compile } from '../src/compiler';
 import { compile as compile2} from '../src/compiler/compiler2';
 import { compile as compile3} from '../src/compiler/compiler3';
 
-const TEST = 'four';
+const TEST = 'three';
 
 console.log('Any specific test specified? ', process.argv[2]);
 
@@ -51,9 +51,15 @@ async function test(file: string): Promise<void> {
   // const ll = compile(sourceFile);
   const ll = compile2(sourceFile);
   // const ll = compile3(sourceFile);
+
   const llFile = path.resolve(workDir, file.replace('.ts', '.ll'));
   await fsPromises.writeFile(llFile, ll);
-  const result = await execLl(llFile);
+
+  const llLinkedFile = path.resolve(workDir, file.replace('.ts', '-linked.ll'));
+  const llInfraFile = path.resolve(WORK_DIR, '..', 'infra', 'infra.ll');
+  await execLlLink(llLinkedFile, [llFile, llInfraFile]);
+
+  const result = await execLl(llLinkedFile);
   console.log(`${'\x1b[34m'}RESULT:\n${result}`, '\x1b[0m');
 
   /* QQQQ
@@ -74,6 +80,24 @@ async function test(file: string): Promise<void> {
 function execLl(file: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     exec('lli ' + file, (error, stdout, stderr) => {
+      if (error) {
+        console.log(stdout);
+        reject(new Error(`error: ${error.message}`));
+      } else if (stderr) {
+        console.log(stdout);
+        reject(new Error(`stderr: ${stderr}`));
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
+
+function execLlLink(outFile: string, files: string[]): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const cmd = `llvm-link -S -o ${outFile} ${files.join(' ')}`;
+    console.log('LINK CMD: ', cmd);
+    exec(cmd, (error, stdout, stderr) => {
       if (error) {
         console.log(stdout);
         reject(new Error(`error: ${error.message}`));

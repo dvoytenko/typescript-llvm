@@ -190,19 +190,20 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
 
       const propName = propAssignment.name.text;
 
-      if (jsType.cust?.fieldNames.includes(propName)) {
-        const propValueType = custPtr.type.toType.fields[propName] as Type;
-        const propValueConv = instr.strictConvert(propValue, propValueType);
-        jsType.cust.store(instr.builder, custPtr, propName, propValueConv);
-      } else {
-        const keyStr = types.jsString.constValue(instr, propName);
-        const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
-        const propValuePtr = instr.strictConvert(
-          propValue,
-          types.jsValue.pointerOf()
-        );
-        helper.setField(keyPtr, propValuePtr);
-      }
+      //QQQQQ
+      // if (jsType.cust?.fieldNames.includes(propName)) {
+      //   const propValueType = custPtr.type.toType.fields[propName] as Type;
+      //   const propValueConv = instr.strictConvert(propValue, propValueType);
+      //   jsType.cust.store(instr.builder, custPtr, propName, propValueConv);
+      // } else {
+      const keyStr = types.jsString.constValue(instr, propName);
+      const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
+      const propValuePtr = instr.strictConvert(
+        propValue,
+        types.jsValue.pointerOf()
+      );
+      helper.setField(keyPtr, propValuePtr);
+      // }
     }
     return ptr;
   };
@@ -217,21 +218,25 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
       throw new Error("cannot use value for object access expression");
     }
 
-    const symbol = checker.getSymbolAtLocation(node.name);
-    const decl = symbol!.valueDeclaration!;
-    const declType = checker.getTypeAtLocation(decl.parent);
-    console.log("QQQQQ: prop access type: ", checker.typeToString(declType));
-    const jsType = (tsToGType(declType, node, context) as PointerType<JsObject>)
-      .toType;
-    console.log("QQQQ: prop access gtype: ", jsType);
-
     const propName = node.name.text;
-    if (jsType.cust?.fieldNames.includes(propName)) {
-      const objPtr = instr.strictConvert(target, jsType.pointerOf());
-      const custPtr = jsType.gep(instr.builder, objPtr, "cust");
-      return jsType.cust.load(instr.builder, custPtr, propName);
+    const symbol = checker.getSymbolAtLocation(node.name);
+    if (symbol) {
+      const decl = symbol.valueDeclaration!;
+      const declType = checker.getTypeAtLocation(decl.parent);
+      console.log("QQQQQ: prop access type: ", checker.typeToString(declType));
+      const jsType = (
+        tsToGType(declType, node, context) as PointerType<JsObject>
+      ).toType;
+      console.log("QQQQ: prop access gtype: ", jsType);
+
+      if (jsType.cust?.fieldNames.includes(propName)) {
+        const objPtr = instr.strictConvert(target, jsType.pointerOf());
+        const custPtr = jsType.gep(instr.builder, objPtr, "cust");
+        return jsType.cust.load(instr.builder, custPtr, propName);
+      }
     }
 
+    // Fallback to map read.
     const objPtr = instr.strictConvert(target, jsObject.pointerOf());
     const helper = jslib.jsObjectHelper(objPtr);
     const keyStr = types.jsString.constValue(instr, propName);

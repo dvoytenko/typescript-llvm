@@ -115,7 +115,6 @@ function getFieldFactory(
   const { jsValue } = types;
   const jsString = types.jsString;
   const jsStringPtr = jsString.pointerOf();
-  // const jsStringHelper;
   const jsValuePtr = jsValue.pointerOf();
   const funcType = types.func<
     PointerType<JsUnknownType>,
@@ -148,6 +147,25 @@ function getFieldFactory(
   ): Pointer<JsValueType<any, any>> => {
     return instr.call("get_field", func, [ptr, key]);
   };
+
+  /*QQQQ
+  const { jsValue } = types;
+  const jsString = types.jsString;
+  const jsStringPtr = jsString.pointerOf();
+  const jsValuePtr = jsValue.pointerOf();
+  const funcType = types.func<
+    PointerType<JsUnknownType>,
+    [PointerType<JsObject>, PointerType<JsString>]
+  >(jsValuePtr, [jsObject.pointerOf(), jsStringPtr]);
+  const func = instr.func("jsObject_getField", funcType);
+
+  return (
+    ptr: Pointer<JsObject>,
+    key: Pointer<JsString>
+  ): Pointer<JsValueType<any, any>> => {
+    return instr.call("get_field", func, [ptr, key]);
+  };
+  */
 }
 
 function setFieldFactory(
@@ -161,7 +179,6 @@ function setFieldFactory(
   const { jsValue } = types;
   const jsString = types.jsString;
   const jsStringPtr = jsString.pointerOf();
-  // const jsStringHelper;
   const jsValuePtr = jsValue.pointerOf();
   const funcType = types.func<
     I32Type,
@@ -213,4 +230,28 @@ function setFieldFactory(
   ) => {
     instr.call("set_field", func, [ptr, key, value]);
   };
+
+  /*QQQQ
+  const { jsValue } = types;
+  const jsString = types.jsString;
+  const jsStringPtr = jsString.pointerOf();
+  const jsValuePtr = jsValue.pointerOf();
+  const funcType = types.func<
+    I32Type,
+    [
+      PointerType<JsObject>,
+      PointerType<JsString>,
+      PointerType<JsValueType<any, any>>
+    ]
+  >(types.i32, [jsObject.pointerOf(), jsStringPtr, jsValuePtr]);
+  const func = instr.func("jsObject_setField", funcType);
+
+  return (
+    ptr: Pointer<JsObject>,
+    key: Pointer<JsString>,
+    value: Pointer<JsValueType<any, any>>
+  ) => {
+    instr.call("set_field", func, [ptr, key, value]);
+  };
+  */
 }
