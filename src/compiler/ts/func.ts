@@ -32,9 +32,9 @@ export function declFunction(
   const sig = checker.getSignatureFromDeclaration(node)!;
   const tsReturnType = checker.getReturnTypeOfSignature(sig);
   console.log("QQQ: sig: ", checker.signatureToString(sig));
-  // console.log("QQQ: ret: ", checker.typeToString(tsReturnType));
+  console.log("QQQ: ret: ", checker.typeToString(tsReturnType));
   const returnType = tsToGTypeUnboxed(tsReturnType, node, context);
-  // console.log("QQQ: llReturnType: ", returnType);
+  console.log("QQQ: llReturnType: ", returnType);
 
   const args = node.parameters.map((arg) => {
     const argName = arg.name.getText();

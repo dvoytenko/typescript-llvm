@@ -6,7 +6,7 @@ import { StructFields, StructType } from "./struct";
 
 export enum JsType {
   UNKNOWN = -1,
-  UDNEFINED = 0,
+  UNDEFINED = 0,
   NULL,
   BOOL,
   NUMBER,

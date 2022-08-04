@@ -10,7 +10,8 @@ import { StatementHandlers, statements } from "./ts/statements";
 import { tsToGTypeUnboxed } from "./ts/types";
 import { types as typesFactory, type Types } from "./types";
 import { Value } from "./types/base";
-import { JsCustObject, JsObject } from "./types/jsobject";
+import { JsObject } from "./types/jsobject";
+import { JsType, JsValueType } from "./types/jsvalue";
 import { StructFields, StructType } from "./types/struct";
 
 export function compile(file: string): string {
@@ -228,10 +229,11 @@ class Compiler {
   }
 
   private declObjType(tsType: ts.Type, node: ts.Node): JsObject {
-    const key = `u/Obj<${this.checker.typeToString(tsType)}>`;
+    const tsTypeStr = this.checker.typeToString(tsType);
+    const key = `u/Obj<${tsTypeStr}>`;
     let objType = this.objTypes.get(key);
     if (!objType) {
-      const { types, checker } = this;
+      const { types, instr, checker, llBuilder } = this;
 
       const shape: StructFields = {};
       for (const prop of tsType.getProperties()) {
@@ -247,11 +249,73 @@ class Compiler {
 
       const shapeType = new StructType(
         types.context,
-        `u/Shape<${this.checker.typeToString(tsType)}>`,
+        `u/Shape<${tsTypeStr}>`,
         shape
       );
 
-      objType = new JsCustObject(types.context, types.jsvMap, key, shapeType);
+      // Create vtable.
+      const { vtable, i8, i32, jsString } = types;
+      const vtFieldsType = vtable.fields.fields;
+      const vtFieldType = vtFieldsType.fields.fields.toType;
+      const nullptr = shapeType.pointerOf().nullptr();
+
+      const vtFields = Object.entries(shape).map(([fieldName, gType]) => {
+        const field = instr.globalConstVar(
+          "field",
+          jsString.constValue(instr, fieldName)
+        );
+        const isJsv = gType.isPointer() && gType.toType instanceof JsValueType;
+        // TODO: bool and other boxed types.
+        const jsType = isJsv
+          ? gType.toType.jsType
+          : gType.isA(i32)
+          ? JsType.NUMBER
+          : JsType.UNKNOWN;
+        const fieldPtr = shapeType.gep(llBuilder, nullptr, fieldName);
+        const offset = llBuilder.CreatePtrToInt(
+          fieldPtr.llValue,
+          llBuilder.getInt32Ty()
+        ) as llvm.Constant;
+
+        return vtFieldType.createConst({
+          field: jsString.pointer(field.llVar),
+          jsType: i32.constValue(jsType),
+          boxed: i8.constValue(isJsv ? 1 : 0),
+          offset: new Value(i32, offset),
+        });
+      });
+      const fieldsArrayType = llvm.ArrayType.get(
+        vtFieldType.llType,
+        vtFields.length
+      );
+      const fieldsArray = llvm.ConstantArray.get(
+        fieldsArrayType,
+        vtFields.map((f) => f.llValue as llvm.Constant)
+      );
+      const fieldsArrayVar = new llvm.GlobalVariable(
+        this.llModule,
+        /* type */ fieldsArrayType,
+        /* isConstant */ true,
+        /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
+        /* initializer */ fieldsArray,
+        `u/VT<${tsTypeStr}>/fields`
+      );
+      const fieldsArrayVarPtr = llBuilder.CreateBitCast(
+        fieldsArrayVar,
+        vtFieldType.pointerOf().llType
+      );
+
+      const vtablePtr = instr.globalConstVar(
+        `u/VT<${tsTypeStr}>`,
+        vtable.createConst({
+          fields: vtable.fields.fields.createConst({
+            length: i32.constValue(Object.keys(shape).length),
+            fields: vtFieldType.pointer(fieldsArrayVarPtr),
+          }),
+        })
+      ).ptr;
+
+      objType = types.jsCustObject(key, shapeType, vtablePtr);
       this.objTypes.set(key, objType);
     }
     return objType;

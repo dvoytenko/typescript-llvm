@@ -14,9 +14,12 @@ import {
   JsUnknownType2,
   JsValueType,
 } from "../types/jsvalue";
+import { VTable } from "../types/vtable";
 
 export interface JslibValues {
   jsNull: Pointer<JsNullType>;
+  zero: Pointer<JsNumberType>;
+  vtableEmpty: Pointer<VTable>;
 }
 
 type AddAnyArgs = [
@@ -69,6 +72,7 @@ export interface Jslib {
   sub: SubInstr;
   strictEq: StrictEqInstr;
   jsObject: JsObjectLib;
+  // globalJsStringConst: (s: string) => Pointer<JsString>;
 }
 
 export interface Gen {
@@ -78,12 +82,26 @@ export interface Gen {
 }
 
 export function jslibFactory(gen: Gen): Jslib {
-  const i32 = gen.types.i32;
+  const { types, instr } = gen;
+  const { i32, jsNull: jsNullType, jsNumber, vtable } = types;
+  const jsNull = instr.globalConstVar(
+    "jsnull",
+    jsNullType.createConst({ jsType: i32.constValue(JsType.NULL) })
+  ).ptr;
+  const zero = instr.globalConstVar("zero", jsNumber.constValue(0)).ptr;
+  const vtableEmpty = instr.globalConstVar(
+    "vtableEmpty",
+    vtable.createConst({
+      fields: vtable.fields.fields.createConst({
+        length: i32.constValue(0),
+        fields: vtable.fields.fields.fields.fields.nullptr(),
+      }),
+    })
+  ).ptr;
   const values: JslibValues = {
-    jsNull: gen.instr.globalConstVar(
-      "jsnull",
-      gen.types.jsNull.createConst({ jsType: i32.constValue(JsType.NULL) })
-    ).ptr,
+    jsNull,
+    zero,
+    vtableEmpty,
   };
   const funcs: JslibFunctions = {
     addAny: addAnyFunctionFactory(gen),
@@ -97,7 +115,10 @@ export function jslibFactory(gen: Gen): Jslib {
     add: addFactory(gen, values, funcs),
     sub: subFactory(gen, values, funcs),
     strictEq: strictEqFactory(gen, values, funcs),
-    jsObject: jsObjectFactory(gen),
+    jsObject: jsObjectFactory(gen, values),
+    // globalJsStringConst: (s: string) => {
+    //   const jss = types.jsString.constValue(s);
+    // },
   };
 }
 
@@ -257,18 +278,22 @@ function strictEqAnyFunctionFactory({ instr, types }: Gen) {
   );
 }
 
-function jsObjectFactory({ types, instr }: Gen): JsObjectLib {
-  const { voidType, jsValue, jsString, jsObject } = types;
+function jsObjectFactory(
+  { types, instr }: Gen,
+  values: JslibValues
+): JsObjectLib {
+  const { voidType, jsValue, jsString, jsObject, vtable } = types;
   const jsStringPtr = jsString.pointerOf();
   const jsObjectPtr = jsObject.pointerOf();
   const jsValuePtr = jsValue.pointerOf();
+  const vtablePtr = vtable.pointerOf();
 
   const keyToString = (key: Pointer<JsValueType<any, any>>) =>
     instr.strictConvert(key, types.jsString.pointerOf());
 
   const jsObject_init = instr.func(
     "jsObject_init",
-    types.func(voidType, [jsObjectPtr])
+    types.func(voidType, [jsObjectPtr, vtablePtr])
   );
 
   const jsObject_getField = instr.func(
@@ -291,7 +316,10 @@ function jsObjectFactory({ types, instr }: Gen): JsObjectLib {
     create(jsType: JsCustObject) {
       const ptr = instr.malloc("jso", jsType);
       const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
-      instr.callVoid(jsObject_init, [ptr0]);
+      instr.callVoid(jsObject_init, [
+        ptr0,
+        jsType.vtablePtr ?? values.vtableEmpty,
+      ]);
       // QQQQ: zeroinitializer for cust?
       return ptr;
     },

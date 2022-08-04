@@ -15,7 +15,9 @@ char* jsValue_debug(JsValue* arg) {
     return "NULL";
   }
   switch (arg->jsType) {
-    case UDNEFINED:
+    case ANY:
+      return "JSV<any>";
+    case UNDEFINED:
       return "JSV<undefined>";
     case NULLV:
       return "JSV<null>";

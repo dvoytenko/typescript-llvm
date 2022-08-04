@@ -16,4 +16,8 @@ typedef struct JsvMapEntry {
   JsValue* val;
 } JsvMapEntry;
 
+JsvMap* jsvMap_create();
+JsValue* jsvMap_getField(JsvMap* ptr, JsString* key);
+void jsvMap_setField(JsvMap* ptr, JsString* key, JsValue* val);
+
 #endif

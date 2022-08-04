@@ -11,6 +11,9 @@ typedef struct JsNumber {
   int value;
 } JsNumber;
 
+static const JsNumber JSZERO_VALUE = {.jsType = NUMBER, .value = 0};
+static const JsNumber* JSZERO = &JSZERO_VALUE;
+
 JsNumber* jsNumber_create(int value);
 
 #endif

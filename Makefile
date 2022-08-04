@@ -19,7 +19,9 @@ infra_compile:
 	clang -S -emit-llvm $(INFRA_SRC)/jsnumber.c -o $(INFRA_OUT)/jsnumber.ll
 	clang -S -emit-llvm $(INFRA_SRC)/jsobject.c -o $(INFRA_OUT)/jsobject.ll
 	clang -S -emit-llvm $(INFRA_SRC)/jsstring.c -o $(INFRA_OUT)/jsstring.ll
+	clang -S -emit-llvm $(INFRA_SRC)/jsvmap.c -o $(INFRA_OUT)/jsvmap.ll
 	clang -S -emit-llvm $(INFRA_SRC)/stricteq.c -o $(INFRA_OUT)/stricteq.ll
+	clang -S -emit-llvm $(INFRA_SRC)/vtable.c -o $(INFRA_OUT)/vtable.ll
 	clang -S -emit-llvm $(INFRA_SRC)/test.c -o $(INFRA_OUT)/test.ll
 
 infra_link:
@@ -29,7 +31,9 @@ infra_link:
 		$(INFRA_OUT)/jsnumber.ll \
 		$(INFRA_OUT)/jsobject.ll \
 		$(INFRA_OUT)/jsstring.ll \
+		$(INFRA_OUT)/jsvmap.ll \
 		$(INFRA_OUT)/stricteq.ll \
+		$(INFRA_OUT)/vtable.ll \
 		-o $(INFRA_OUT)/infra.ll
 
 infra_test:

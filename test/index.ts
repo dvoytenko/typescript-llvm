@@ -6,7 +6,7 @@ import { compile } from '../src/compiler';
 import { compile as compile2} from '../src/compiler/compiler2';
 import { compile as compile3} from '../src/compiler/compiler3';
 
-const TEST = 'four';
+const TEST = 'three';
 
 console.log('Any specific test specified? ', process.argv[2]);
 

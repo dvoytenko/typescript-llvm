@@ -1,14 +1,23 @@
 import llvm from "llvm-bindings";
-import { I32Type, I64Type, I8Type, PointerType, Type, VoidType } from "./base";
+import {
+  I32Type,
+  I64Type,
+  I8Type,
+  Pointer,
+  PointerType,
+  Type,
+  VoidType,
+} from "./base";
 import { BoolType } from "./bool";
 import { FunctionType } from "./func";
 import { JsNullType } from "./jsnull";
 import { JsNumberType } from "./jsnumber";
-import { JsObject } from "./jsobject";
+import { JsCustObject, JsObject } from "./jsobject";
 import { JsString } from "./jsstring";
 import { JsUnknownType } from "./jsvalue";
 import { JsvMap } from "./jsvmap";
 import { StructFields, StructType } from "./struct";
+import { VTable } from "./vtable";
 
 export interface Types {
   context: llvm.LLVMContext;
@@ -26,18 +35,25 @@ export interface Types {
     retType: Ret,
     args: [...Args]
   ) => FunctionType<Ret, Args>;
+  vtable: VTable;
+  jsvMap: JsvMap;
   jsValue: JsUnknownType;
   jsNull: JsNullType;
   jsNumber: JsNumberType;
   jsString: JsString;
   jsObject: JsObject;
-  jsvMap: JsvMap;
+  jsCustObject: (
+    name: string,
+    cust: StructType<any>,
+    vtable: Pointer<VTable>
+  ) => JsCustObject;
 }
 
 export function types(context: llvm.LLVMContext): Types {
   // TODO: singleton
   const jsValue = new JsUnknownType(context);
   const jsString = new JsString(context);
+  const vtable = new VTable(context, jsString);
   const jsvMap = new JsvMap(context, jsString, jsValue);
   return {
     context,
@@ -53,11 +69,19 @@ export function types(context: llvm.LLVMContext): Types {
       retType: Ret,
       args: Args
     ) => new FunctionType(context, retType, args),
+    vtable,
+    jsvMap,
     jsValue,
     jsNull: new JsNullType(context),
     jsNumber: new JsNumberType(context),
     jsString,
-    jsObject: new JsObject(context, jsvMap),
-    jsvMap,
+    jsObject: new JsObject(context, vtable, jsvMap),
+    jsCustObject: (
+      name: string,
+      cust: StructType<any>,
+      vtablePtr: Pointer<VTable>
+    ) => {
+      return new JsCustObject(context, vtable, jsvMap, name, cust, vtablePtr);
+    },
   };
 }

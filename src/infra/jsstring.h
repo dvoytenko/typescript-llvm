@@ -13,6 +13,7 @@ typedef struct JsString {
   char* chars;
 } JsString;
 
+JsString* jsString_create(int length, char* chars);
 void jsString_init(JsString* ptr, int length, char* chars);
 bool jsString_equals(JsString* s1, JsString* s2);
 
