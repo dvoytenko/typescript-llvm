@@ -1,12 +1,13 @@
 import * as ts from "typescript";
 
-const fileNames = ["./test/data/one.ts"];
+const fileNames = ["./test/data/six.tsx"];
 
 const options: ts.CompilerOptions = {
   target: ts.ScriptTarget.Latest,
   module: ts.ModuleKind.ESNext,
   strictNullChecks: true,
   strictFunctionTypes: true,
+  jsxFactory: "jsx",
   /*
     "module": "commonjs",
     "esModuleInterop": true,
@@ -29,7 +30,13 @@ function printRecursiveFrom(
   const nodeText = node.getText(sourceFile);
   console.log(`${indentation}${syntaxKind}: ${nodeText}`);
 
-  if (syntaxKind === "Identifier") {
+  if (syntaxKind === "Identifier" || ts.isJsxOpeningElement(node)) {
+    console.log(
+      `${indentation}-@@ type: ${checker.typeToString(
+        checker.getTypeAtLocation(node)
+      )}`
+    );
+
     const symbol = checker.getSymbolAtLocation(node);
     if (symbol) {
       console.log(`${indentation}-@@ symbol: ${symbol.getName()}`);

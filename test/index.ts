@@ -6,7 +6,7 @@ import { compile } from '../src/compiler';
 import { compile as compile2} from '../src/compiler/compiler2';
 import { compile as compile3} from '../src/compiler/compiler3';
 
-const TEST = 'three';
+const TEST = 'five';
 
 console.log('Any specific test specified? ', process.argv[2]);
 
@@ -24,17 +24,14 @@ async function run(dir: string) {
     const stat = await fsPromises.stat(file);
     if (stat.isDirectory()) {
       await run(file);
-    } else if (file.endsWith('.ts')) {
+    } else if (file.endsWith('.ts') || file.endsWith('.tsx')) {
       await test(path.relative(DATA_DIR, file));
-      // if (file.endsWith('.ll')) {
-      //   await execLl(file);
-      // }
     }
   }
 }
 
 async function test(file: string): Promise<void> {
-  console.log('TS FILE: ', file);
+  console.log('TS(X) FILE: ', file);
   if (!file.includes(TEST)) {
     return;
   }
@@ -52,10 +49,10 @@ async function test(file: string): Promise<void> {
   const ll = compile2(sourceFile);
   // const ll = compile3(sourceFile);
 
-  const llFile = path.resolve(workDir, file.replace('.ts', '.ll'));
+  const llFile = path.resolve(workDir, file.replace('.tsx', '.ll').replace('.ts', '.ll'));
   await fsPromises.writeFile(llFile, ll);
 
-  const llLinkedFile = path.resolve(workDir, file.replace('.ts', '-linked.ll'));
+  const llLinkedFile = path.resolve(workDir, llFile.replace('.ll', '-linked.ll'));
   const llInfraFile = path.resolve(WORK_DIR, '..', 'infra', 'infra.ll');
   await execLlLink(llLinkedFile, [llFile, llInfraFile]);
 
@@ -63,8 +60,8 @@ async function test(file: string): Promise<void> {
   console.log(`${'\x1b[34m'}RESULT:\n${result}`, '\x1b[0m');
 
   /* QQQ
-  const origFile = path.resolve(DATA_DIR, file.replace('.ts', '.res'));
-  const resultFile = path.resolve(workDir, path.basename(file, '.ts') + '.res');
+  const origFile = path.resolve(DATA_DIR, llFile.replace('.ll', '.res'));
+  const resultFile = path.resolve(workDir, path.basename(llFile, '.ll') + '.res');
   console.log('RESULT FILE: ', resultFile);
   await fsPromises.writeFile(resultFile, result);
 

@@ -12,6 +12,8 @@
     "types": [
       "node",
     ],
+    "jsx": "react",
+    "jsxFactory": "jsx",
   },
   "watchOptions": {
     "excludeDirectories": ["out"]

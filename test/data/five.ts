@@ -1,9 +1,9 @@
 
-function add(obj: {a: number; b: number}) {
-  return obj.a * 5 + obj.b * 6;
+function sub(obj: {a: number; b: number}) {
+  return obj.a - obj.b;
 }
 
 export function main() {
-  console.log('add({b: 3, a: 4}):', add({b: 3, a: 4}));
+  console.log('sub({b: 4, a: 7}):', sub({b: 4, a: 7}));
   return 0;
 }
