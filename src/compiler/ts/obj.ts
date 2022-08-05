@@ -47,7 +47,7 @@ function computeFields(
   obj: TsObj,
   context: CompilerContext
 ): Value<VTableFields> {
-  const { types, instr } = context;
+  const { types, instr, jslib } = context;
   const { vtable, i8, i32, jsString } = types;
   const { builder } = instr;
   const { name, shape } = obj;
@@ -58,10 +58,7 @@ function computeFields(
   const nullptr = shapeType.pointerOf().nullptr();
 
   const vtFields = Object.entries(shape).map(([fieldName, gType]) => {
-    const field = instr.globalConstVar(
-      "field",
-      jsString.constValue(instr, fieldName)
-    );
+    const field = jslib.jsString.globalConstVar(fieldName);
     const isJsv = gType.isPointer() && gType.toType instanceof JsValueType;
     // TODO: bool and other boxed types.
     const jsType = isJsv

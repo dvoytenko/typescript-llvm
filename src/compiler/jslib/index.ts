@@ -1,6 +1,8 @@
 import { Debug } from "../debug";
 import { Instr } from "../instr";
 import { Function } from "../instr/func";
+import { Globals } from "../instr/globals";
+import { GlobalVar } from "../instr/globalvar";
 import { Types } from "../types";
 import { I32Type, Pointer, PointerType, Value, VoidType } from "../types/base";
 import { BoolType } from "../types/bool";
@@ -67,6 +69,10 @@ interface JsObjectLib {
   getIfc(ptr: Pointer<JsObject>, id: Value<I32Type>): Pointer<VTableIfcField>;
 }
 
+interface JsStringLib {
+  globalConstVar: (s: string) => GlobalVar<JsString>;
+}
+
 export interface Jslib {
   instr: Instr;
   values: JslibValues;
@@ -75,7 +81,7 @@ export interface Jslib {
   sub: SubInstr;
   strictEq: StrictEqInstr;
   jsObject: JsObjectLib;
-  // globalJsStringConst: (s: string) => Pointer<JsString>;
+  jsString: JsStringLib;
 }
 
 export interface Gen {
@@ -86,7 +92,7 @@ export interface Gen {
 
 export function jslibFactory(gen: Gen): Jslib {
   const { types, instr } = gen;
-  const { i32, jsNull: jsNullType, jsNumber, vtable } = types;
+  const { i32, jsNull: jsNullType, jsNumber, jsString, vtable } = types;
   const jsNull = instr.globalConstVar(
     "jsnull",
     jsNullType.createConst({ jsType: i32.constValue(JsType.NULL) })
@@ -129,6 +135,7 @@ export function jslibFactory(gen: Gen): Jslib {
     sub: subFactory(gen, values, funcs),
     strictEq: strictEqFactory(gen, values, funcs),
     jsObject: jsObjectFactory(gen, values),
+    jsString: jsStringFactory(gen),
   };
 }
 
@@ -177,7 +184,8 @@ function addAnyFunctionFactory({ instr, types }: Gen) {
         jsValuePtr as PointerType<JsUnknownType2>,
         jsValuePtr as PointerType<JsUnknownType2>,
       ]
-    )
+    ),
+    ["readonly"]
   );
   return func;
 }
@@ -227,7 +235,8 @@ function subAnyFunctionFactory({ instr, types }: Gen) {
         jsValuePtr as PointerType<JsUnknownType2>,
         jsValuePtr as PointerType<JsUnknownType2>,
       ]
-    )
+    ),
+    ["readonly"]
   );
 }
 
@@ -284,7 +293,8 @@ function strictEqAnyFunctionFactory({ instr, types }: Gen) {
     types.func<BoolType, AddAnyArgs>(bool, [
       jsValuePtr as PointerType<JsUnknownType2>,
       jsValuePtr as PointerType<JsUnknownType2>,
-    ])
+    ]),
+    ["readonly"]
   );
 }
 
@@ -309,7 +319,8 @@ function jsObjectFactory(
 
   const jsObject_getField = instr.func(
     "jsObject_getField",
-    types.func(jsValuePtr, [jsObjectPtr, jsStringPtr])
+    types.func(jsValuePtr, [jsObjectPtr, jsStringPtr]),
+    ["readonly"]
   );
   const jsObject_setField = instr.func<
     VoidType,
@@ -324,7 +335,8 @@ function jsObjectFactory(
   );
   const vTable_getIfc = instr.func(
     "vTable_getIfc",
-    types.func(vtableIfcField.pointerOf(), [jsObjectPtr, i32])
+    types.func(vtableIfcField.pointerOf(), [jsObjectPtr, i32]),
+    ["readonly"]
   );
 
   return {
@@ -359,6 +371,21 @@ function jsObjectFactory(
     ): Pointer<VTableIfcField> {
       const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
       return instr.call("get_ifc", vTable_getIfc, [ptr0, id]);
+    },
+  };
+}
+
+function jsStringFactory({ types, instr }: Gen): JsStringLib {
+  const { jsString } = types;
+  const globalConstVars = new Globals<GlobalVar<JsString>, [string]>(
+    (name, value) => {
+      const jss = jsString.constValue(instr, value);
+      return instr.globalConstVar(`jss.${name}`, jss);
+    }
+  );
+  return {
+    globalConstVar(s: string): GlobalVar<JsString> {
+      return globalConstVars.get(s, s);
     },
   };
 }

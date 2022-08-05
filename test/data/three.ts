@@ -1,6 +1,6 @@
 
 function sub(obj: any) {
-  return obj.a - obj.b;
+  return obj.a - obj.b + obj.a;
 }
 
 export function main() {

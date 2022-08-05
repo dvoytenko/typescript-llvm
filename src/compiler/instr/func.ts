@@ -9,7 +9,8 @@ export class Function<Ret extends Type, Args extends [...Type[]]> {
   constructor(
     module: llvm.Module,
     public readonly name: string,
-    public readonly type: FunctionType<Ret, Args>
+    public readonly type: FunctionType<Ret, Args>,
+    attrs?: string[]
   ) {
     this.llFunc = llvm.Function.Create(
       type.llType,
@@ -17,6 +18,11 @@ export class Function<Ret extends Type, Args extends [...Type[]]> {
       name,
       module
     );
+    if (attrs) {
+      for (const attr of attrs) {
+        this.llFunc.addFnAttr(attr);
+      }
+    }
     this.args = type.args.map((type, index) => {
       return new Value(type, this.llFunc.getArg(index));
     }) as FunctionArgValues<Args>;

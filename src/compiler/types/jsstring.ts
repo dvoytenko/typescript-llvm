@@ -24,9 +24,8 @@ export class JsString extends JsValueType<
   }
 
   constValue(instr: Instr, s: string): Value<typeof this> {
-    // TODO: all of these is wrong!
     const len = s.length;
-    const ptr = instr.globalStringPtr("jss", s);
+    const ptr = instr.globalStringPtr(s);
     return this.createConst({
       jsType: this.fields.jsType.constValue(this.jsType),
       length: this.fields.length.constValue(len),

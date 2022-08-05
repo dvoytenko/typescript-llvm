@@ -16,6 +16,7 @@ import { BoolType } from "../types/bool";
 import { FunctionArgValues, FunctionType } from "../types/func";
 import { JsValueType } from "../types/jsvalue";
 import { Function } from "./func";
+import { Globals } from "./globals";
 import { GlobalVar } from "./globalvar";
 
 export interface InstrValues {}
@@ -27,7 +28,7 @@ export interface Instr {
     name: string,
     value: Value<T>
   ) => GlobalVar<T>;
-  globalStringPtr: (name: string, value: string) => Pointer<I8Type>;
+  globalStringPtr: (value: string) => Pointer<I8Type>;
   alloca: <T extends Type>(
     name: string,
     type: T,
@@ -77,7 +78,8 @@ export interface Instr {
   ) => Pointer<T>;
   func: <Ret extends Type, Args extends [...Type[]]>(
     name: string,
-    type: FunctionType<Ret, Args>
+    type: FunctionType<Ret, Args>,
+    attrs?: string[]
   ) => Function<Ret, Args>;
   block: (func: Function<any, any>, name: string) => llvm.BasicBlock;
   insertPoint: (block: llvm.BasicBlock) => void;
@@ -120,12 +122,15 @@ export function instrFactory(
 ): Instr {
   const values: InstrValues = {};
   const malloc = mallocFactory(builder, module);
+  const globalStrings = new Globals<llvm.Constant, [string]>((name, value) =>
+    builder.CreateGlobalStringPtr(value, name)
+  );
   return {
     builder,
     values,
     globalConstVar: (name, value) => new GlobalVar(module, name, value),
-    globalStringPtr: (name, value) =>
-      new Pointer(types.i8, builder.CreateGlobalStringPtr(value, name)),
+    globalStringPtr: (value) =>
+      new Pointer(types.i8, globalStrings.get(`s.${value || "empty"}`, value)),
     alloca: allocaFactory(builder),
     malloc,
     cast: castFactory(builder),
@@ -141,8 +146,9 @@ export function instrFactory(
     storeBoxed: storeBoxedFactory(builder),
     func: <Ret extends Type, Args extends [...Type[]]>(
       name: string,
-      type: FunctionType<Ret, Args>
-    ) => new Function(module, name, type),
+      type: FunctionType<Ret, Args>,
+      attrs?: string[]
+    ) => new Function(module, name, type, attrs),
     block: (func: Function<any, any>, name: string) =>
       llvm.BasicBlock.Create(context, name, func.llFunc),
     insertPoint: (block: llvm.BasicBlock) => builder.SetInsertPoint(block),

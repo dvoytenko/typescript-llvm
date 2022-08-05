@@ -196,8 +196,7 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
         const propValueConv = instr.strictConvert(propValue, propValueType);
         jsType.cust.store(instr.builder, custPtr, propName, propValueConv);
       } else {
-        const keyStr = types.jsString.constValue(instr, propName);
-        const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
+        const keyPtr = jslib.jsString.globalConstVar(propName).ptr;
         const propValuePtr = instr.strictConvert(
           propValue,
           types.jsValue.pointerOf()
@@ -235,6 +234,11 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
           const declType = checker.getTypeAtLocation(decl.parent);
 
           const ifc = declIfc(declType, decl.parent);
+          // QQQ: alternative:
+          // - jsObject_getStructInt(ptr, ifc, index)
+          // - jsObject_getStructBool(ptr, ifc, index)
+          // - jsObject_getStructJsv(ptr, ifc, index)
+          // However, how much of `ifc` lookup can we reuse between calls?
           if (propName in ifc.shape) {
             const propIndex = Object.keys(ifc.shape).indexOf(propName);
             const propType = ifc.shape[propName]!;
@@ -334,8 +338,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
 
             // Fallback to field search.
             instr.insertPoint(noIfcBlock);
-            const keyStr = types.jsString.constValue(instr, propName);
-            const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
+            const keyPtr = jslib.jsString.globalConstVar(propName).ptr;
             const boxedValue = jslib.jsObject.getField(targetPtr, keyPtr);
             const unboxedValue = instr.strictConvert(boxedValue, valueType);
             instr.store(retval, unboxedValue);
@@ -352,8 +355,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
     }
 
     // Fallback to map read.
-    const keyStr = types.jsString.constValue(instr, propName);
-    const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
+    const keyPtr = jslib.jsString.globalConstVar(propName).ptr;
     return jslib.jsObject.getField(targetPtr, keyPtr);
   };
 }

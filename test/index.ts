@@ -5,7 +5,7 @@ import { exec } from 'child_process';
 import { compile } from '../src/compiler';
 import { compile as compile2} from '../src/compiler/compiler2';
 
-const TEST = 'five';
+const TEST = 'three';
 
 console.log('Any specific test specified? ', process.argv[2]);
 
@@ -23,7 +23,9 @@ async function run(dir: string) {
     const stat = await fsPromises.stat(file);
     if (stat.isDirectory()) {
       await run(file);
-    } else if (file.endsWith('.ts') || file.endsWith('.tsx')) {
+    } else if ((file.endsWith('.ts') || file.endsWith('.tsx'))
+        && !file.endsWith('.d.ts')
+        && !file.endsWith('jsx.ts')) {
       await test(path.relative(DATA_DIR, file));
     }
   }
@@ -58,6 +60,9 @@ async function test(file: string): Promise<void> {
   const result = await execLl(llLinkedFile);
   console.log(`${'\x1b[34m'}RESULT:\n${result}`, '\x1b[0m');
 
+  const llOptFile = path.resolve(workDir, llFile.replace('.ll', '.Oz.ll'));
+  await execLlOpt(llFile, llOptFile, '-Oz');
+
   /* QQQ
   const origFile = path.resolve(DATA_DIR, llFile.replace('.ll', '.res'));
   const resultFile = path.resolve(workDir, path.basename(llFile, '.ll') + '.res');
@@ -89,6 +94,24 @@ function execLlLink(outFile: string, files: string[]): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const cmd = `llvm-link -S -o ${outFile} ${files.join(' ')}`;
     console.log('LINK CMD: ', cmd);
+    exec(cmd, (error, stdout, stderr) => {
+      if (error) {
+        console.log(stdout);
+        reject(new Error(`error: ${error.message}`));
+      } else if (stderr) {
+        console.log(stdout);
+        reject(new Error(`stderr: ${stderr}`));
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
+
+function execLlOpt(inFile: string, outFile: string, opts: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const cmd = `opt ${opts} -S -o ${outFile} ${inFile}`;
+    console.log('OPT CMD: ', cmd);
     exec(cmd, (error, stdout, stderr) => {
       if (error) {
         console.log(stdout);
