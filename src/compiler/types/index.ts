@@ -17,7 +17,7 @@ import { JsString } from "./jsstring";
 import { JsUnknownType } from "./jsvalue";
 import { JsvMap } from "./jsvmap";
 import { StructFields, StructType } from "./struct";
-import { VTable } from "./vtable";
+import { VTable, VTableIfc, VTableIfcField } from "./vtable";
 
 export interface Types {
   context: llvm.LLVMContext;
@@ -36,6 +36,8 @@ export interface Types {
     args: [...Args]
   ) => FunctionType<Ret, Args>;
   vtable: VTable;
+  vtableIfc: VTableIfc;
+  vtableIfcField: VTableIfcField;
   jsvMap: JsvMap;
   jsValue: JsUnknownType;
   jsNull: JsNullType;
@@ -54,6 +56,8 @@ export function types(context: llvm.LLVMContext): Types {
   const jsValue = new JsUnknownType(context);
   const jsString = new JsString(context);
   const vtable = new VTable(context, jsString);
+  const vtableIfc = vtable.fields.itable.fields.ifcs.toType;
+  const vtableIfcField = vtableIfc.fields.fields.toType;
   const jsvMap = new JsvMap(context, jsString, jsValue);
   return {
     context,
@@ -70,6 +74,8 @@ export function types(context: llvm.LLVMContext): Types {
       args: Args
     ) => new FunctionType(context, retType, args),
     vtable,
+    vtableIfc,
+    vtableIfcField,
     jsvMap,
     jsValue,
     jsNull: new JsNullType(context),

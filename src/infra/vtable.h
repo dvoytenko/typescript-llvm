@@ -22,11 +22,31 @@ typedef struct VTableField {
   int offset;
 } VTableField;
 
+typedef struct VTableIfcField {
+  enum JsType jsType;
+  char boxed;
+  int offset;
+} VTableIfcField;
+
+typedef struct VTableIfc {
+  int id;
+  VTableIfcField* fields;
+} VTableIfc;
+
+typedef struct VTableITable {
+  int autoId;
+  int length;
+  VTableIfc* ifcs;
+} VTableIfcs;
+
 typedef struct VTable {
   struct VTableFields fields;
+  struct VTableITable itable;
 } VTable;
 
 JsValue* vTable_getField(JsObject* ptr, JsString* fieldName);
 bool vTable_setField(JsObject* ptr, JsString* key, JsValue* val);
+
+VTableIfcField* vTable_getIfc(JsObject* ptr, int id);
 
 #endif

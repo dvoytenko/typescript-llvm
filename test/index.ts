@@ -4,7 +4,6 @@ import {promises as fsPromises} from 'fs';
 import { exec } from 'child_process';
 import { compile } from '../src/compiler';
 import { compile as compile2} from '../src/compiler/compiler2';
-import { compile as compile3} from '../src/compiler/compiler3';
 
 const TEST = 'five';
 

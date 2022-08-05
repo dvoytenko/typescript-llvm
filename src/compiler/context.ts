@@ -4,11 +4,12 @@ import { Debug } from "./debug";
 import { Instr } from "./instr";
 import { Jslib } from "./jslib";
 import { TsFunction } from "./ts/func";
+import { TsIfc, TsObj } from "./ts/obj";
 import { Types } from "./types";
 import { Value } from "./types/base";
-import { JsObject } from "./types/jsobject";
 
 export interface CompilerContext {
+  module: llvm.Module;
   types: Types;
   instr: Instr;
   debug: Debug;
@@ -26,5 +27,6 @@ export interface CompilerContext {
   genInBlock(block: llvm.BasicBlock, gen: () => void, finish: () => void);
   terminateBlock();
 
-  declObjType(tsType: ts.Type, node: ts.Node): JsObject;
+  declObjType(tsType: ts.Type, node: ts.Node): TsObj;
+  declIfc(tsType: ts.Type, node: ts.Node): TsIfc;
 }

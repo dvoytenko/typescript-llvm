@@ -2,6 +2,7 @@ import ts from "typescript";
 import { CompilerContext } from "../context";
 import { PointerType, Type } from "../types/base";
 import { JsValueType } from "../types/jsvalue";
+import { StructFields } from "../types/struct";
 
 export function tsToGTypeUnboxed(
   tsType: ts.Type,
@@ -74,8 +75,8 @@ export function tsToGType(
     if (flags !== 0) {
       throw new Error(`not all flags picked up: ${flags} ${flags.toString(2)}`);
     }
-    // TODO: do we need `node` here for location info?
-    return context.declObjType(tsType, node).pointerOf();
+    // QQQQ: should this be an interface instead? or open jsObject?
+    return context.declObjType(tsType, node).type.pointerOf();
   }
 
   /* type: { a: number; b: number; }
@@ -128,6 +129,22 @@ export function tsToGType(
   */
 
   return types.jsValue.pointerOf();
+}
+
+export function tsToStructFields(
+  tsType: ts.Type,
+  node: ts.Node,
+  compilerContext: CompilerContext
+): StructFields {
+  const { checker } = compilerContext;
+  const shape: StructFields = {};
+  for (const prop of tsType.getProperties()) {
+    const propName = prop.name;
+    const propType = checker.getTypeOfSymbolAtLocation(prop, node);
+    const propGType = tsToGTypeUnboxed(propType, node, compilerContext);
+    shape[propName] = propGType;
+  }
+  return shape;
 }
 
 function logType(tsType: ts.Type, { checker }: CompilerContext) {

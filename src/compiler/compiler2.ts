@@ -6,13 +6,12 @@ import { Instr, instrFactory } from "./instr";
 import { Jslib, jslibFactory } from "./jslib";
 import { expressions, ExprHandlers } from "./ts/expressions";
 import { declFunction, TsFunction } from "./ts/func";
+import { TsObj, TsIfc, completeVTable } from "./ts/obj";
 import { StatementHandlers, statements } from "./ts/statements";
-import { tsToGTypeUnboxed } from "./ts/types";
+import { tsToStructFields } from "./ts/types";
 import { types as typesFactory, type Types } from "./types";
 import { Value } from "./types/base";
-import { JsObject } from "./types/jsobject";
-import { JsType, JsValueType } from "./types/jsvalue";
-import { StructFields, StructType } from "./types/struct";
+import { StructType } from "./types/struct";
 
 export function compile(file: string): string {
   console.log("COMPILE: ", file);
@@ -42,10 +41,12 @@ class Compiler {
 
   private readonly functions: Map<ts.Node, TsFunction> = new Map();
   private readonly refs: Map<ts.Node, Value<any>> = new Map();
-  private readonly objTypes: Map<string, JsObject> = new Map();
+  private readonly objTypes: Map<string, TsObj> = new Map();
+  private readonly ifcs: Map<string, TsIfc> = new Map();
   private sourceFile: ts.SourceFile;
   private currentFunc: TsFunction | null = null;
   private blockTerminated: boolean[] = [];
+  private ifcIdCounter = 0;
 
   constructor(files: string[]) {
     this.program = ts.createProgram(files, {
@@ -87,6 +88,7 @@ class Compiler {
     // CompilerContext
     const compiler = this;
     this.compilerContext = {
+      module: this.llModule,
       types: this.types,
       instr: this.instr,
       debug: this.debug,
@@ -112,6 +114,7 @@ class Compiler {
         }
       },
       declObjType: this.declObjType.bind(this),
+      declIfc: this.declIfc.bind(this),
     };
 
     this.statements = statements(this.compilerContext);
@@ -121,6 +124,7 @@ class Compiler {
   compile(): string {
     this.collectTopLevel();
     this.gen();
+    this.complete();
     return this.llModule.print();
   }
 
@@ -228,97 +232,80 @@ class Compiler {
     return handler(node);
   }
 
-  private declObjType(tsType: ts.Type, node: ts.Node): JsObject {
+  private declObjType(tsType: ts.Type, node: ts.Node): TsObj {
     const tsTypeStr = this.checker.typeToString(tsType);
     const key = `u/Obj<${tsTypeStr}>`;
-    let objType = this.objTypes.get(key);
-    if (!objType) {
-      const { types, instr, checker, llBuilder } = this;
+    let obj = this.objTypes.get(key);
+    if (!obj) {
+      const { types, instr } = this;
 
-      const shape: StructFields = {};
-      for (const prop of tsType.getProperties()) {
-        const propName = prop.name;
-        const propType = checker.getTypeOfSymbolAtLocation(prop, node);
-        const propGType = tsToGTypeUnboxed(
-          propType,
-          node,
-          this.compilerContext
-        );
-        shape[propName] = propGType;
-      }
-
+      const shape = tsToStructFields(tsType, node, this.compilerContext);
+      console.log("QQQQ: declObj: ", key, shape);
       const shapeType = new StructType(
         types.context,
         `u/Shape<${tsTypeStr}>`,
         shape
       );
 
+      const autoIfc = this.declIfc(tsType, node);
+
       // Create vtable.
-      const { vtable, i8, i32, jsString } = types;
+      const { vtable, vtableIfc, i32 } = types;
       const vtFieldsType = vtable.fields.fields;
       const vtFieldType = vtFieldsType.fields.fields.toType;
-      const nullptr = shapeType.pointerOf().nullptr();
 
-      const vtFields = Object.entries(shape).map(([fieldName, gType]) => {
-        const field = instr.globalConstVar(
-          "field",
-          jsString.constValue(instr, fieldName)
-        );
-        const isJsv = gType.isPointer() && gType.toType instanceof JsValueType;
-        // TODO: bool and other boxed types.
-        const jsType = isJsv
-          ? gType.toType.jsType
-          : gType.isA(i32)
-          ? JsType.NUMBER
-          : JsType.UNKNOWN;
-        const fieldPtr = shapeType.gep(llBuilder, nullptr, fieldName);
-        const offset = llBuilder.CreatePtrToInt(
-          fieldPtr.llValue,
-          llBuilder.getInt32Ty()
-        ) as llvm.Constant;
-
-        return vtFieldType.createConst({
-          field: jsString.pointer(field.llVar),
-          jsType: i32.constValue(jsType),
-          boxed: i8.constValue(isJsv ? 1 : 0),
-          offset: new Value(i32, offset),
-        });
-      });
-      const fieldsArrayType = llvm.ArrayType.get(
-        vtFieldType.llType,
-        vtFields.length
-      );
-      const fieldsArray = llvm.ConstantArray.get(
-        fieldsArrayType,
-        vtFields.map((f) => f.llValue as llvm.Constant)
-      );
-      const fieldsArrayVar = new llvm.GlobalVariable(
-        this.llModule,
-        /* type */ fieldsArrayType,
-        /* isConstant */ true,
-        /* linkage */ llvm.GlobalValue.LinkageTypes.PrivateLinkage,
-        /* initializer */ fieldsArray,
-        `u/VT<${tsTypeStr}>/fields`
-      );
-      const fieldsArrayVarPtr = llBuilder.CreateBitCast(
-        fieldsArrayVar,
-        vtFieldType.pointerOf().llType
-      );
-
-      const vtablePtr = instr.globalConstVar(
+      const vtableVar = instr.globalConstVar(
         `u/VT<${tsTypeStr}>`,
         vtable.createConst({
           fields: vtable.fields.fields.createConst({
-            length: i32.constValue(Object.keys(shape).length),
-            fields: vtFieldType.pointer(fieldsArrayVarPtr),
+            length: i32.constValue(0),
+            fields: vtFieldType.pointerOf().nullptr(),
+          }),
+          itable: vtable.fields.itable.createConst({
+            autoId: i32.constValue(autoIfc.id),
+            length: i32.constValue(0),
+            ifcs: vtableIfc.pointerOf().nullptr(),
           }),
         })
-      ).ptr;
+      );
 
-      objType = types.jsCustObject(key, shapeType, vtablePtr);
-      this.objTypes.set(key, objType);
+      const objType = types.jsCustObject(key, shapeType, vtableVar.ptr);
+      obj = new TsObj(tsTypeStr, tsType, shape, objType, vtableVar, autoIfc);
+      this.objTypes.set(key, obj);
     }
-    return objType;
+    return obj;
+  }
+
+  private declIfc(tsType: ts.Type, node: ts.Node): TsIfc {
+    const tsTypeStr = this.checker.typeToString(tsType);
+    const key = `u/Ifc<${tsTypeStr}>`;
+    let ifc = this.ifcs.get(key);
+    if (!ifc) {
+      const id = ++this.ifcIdCounter;
+      const shape = tsToStructFields(tsType, node, this.compilerContext);
+      const shapeType = new StructType(
+        this.types.context,
+        `u/Shape<${tsTypeStr}>`,
+        shape
+      );
+      ifc = new TsIfc(id, tsTypeStr, tsType, shape, shapeType);
+      this.ifcs.set(key, ifc);
+    }
+    return ifc;
+  }
+
+  private complete() {
+    // TODO: this is all wrong.
+    for (const obj of this.objTypes.values()) {
+      for (const ifc of this.ifcs.values()) {
+        obj.ifcs.push(ifc);
+      }
+    }
+
+    // Write vtables.
+    for (const obj of this.objTypes.values()) {
+      completeVTable(obj, this.compilerContext);
+    }
   }
 }
 

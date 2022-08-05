@@ -1,9 +1,8 @@
 import ts from "typescript";
 import { CompilerContext } from "../../context";
-import { PointerType, Type, Value } from "../../types/base";
-import { JsCustObject } from "../../types/jsobject";
+import { Pointer, Type, Value } from "../../types/base";
 import { TsFunction } from "../func";
-import { tsToGType, tsToGTypeUnboxed } from "../types";
+import { tsToGTypeUnboxed } from "../types";
 
 export type ExprHandler<E extends ts.Expression> = (
   st: E
@@ -165,13 +164,15 @@ function binaryExpressionFactory({ jslib, genExpr }: CompilerContext) {
 }
 
 function objectLiteralExpressionFactory(context: CompilerContext) {
-  const { types, instr, jslib, checker, genExpr } = context;
+  const { types, instr, jslib, checker, genExpr, declObjType } = context;
   return (node: ts.ObjectLiteralExpression) => {
     const tsType = checker.getTypeAtLocation(node);
     console.log("QQQ: obj type: ", checker.typeToString(tsType));
-    const jsType = (
-      tsToGType(tsType, node, context) as PointerType<JsCustObject>
-    ).toType;
+    const tsObj = declObjType(tsType, node);
+    // const jsType = (
+    //   tsToGType(tsType, node, context) as PointerType<JsCustObject>
+    // ).toType;
+    const jsType = tsObj.type;
     console.log("QQQ: obj gtype: ", jsType);
 
     // TODO: better name from source.
@@ -209,34 +210,150 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
 }
 
 function propertyAccessExpressionFactory(context: CompilerContext) {
-  const { types, instr, jslib, checker, genExpr } = context;
+  const { types, instr, jslib, checker, genExpr, declIfc } = context;
+  const { i32, i64, jsObject, vtableIfcField } = types;
+  const { builder } = instr;
   return (node: ts.PropertyAccessExpression) => {
     const target = genExpr(node.expression);
     if (!(target instanceof Value<any>)) {
       throw new Error("cannot use value for object access expression");
     }
 
+    const targetPtr = instr.cast("cast_to_jsobj", target, jsObject);
     const propName = node.name.text;
     const symbol = checker.getSymbolAtLocation(node.name);
     if (symbol) {
-      const decl = symbol.valueDeclaration!;
-      const declType = checker.getTypeAtLocation(decl.parent);
-      console.log("QQQ: prop access type: ", checker.typeToString(declType));
-      const jsType = (
-        tsToGType(declType, node, context) as PointerType<JsCustObject>
-      ).toType;
-      console.log("QQQ: prop access gtype: ", jsType);
+      const valueType = tsToGTypeUnboxed(
+        checker.getTypeOfSymbolAtLocation(symbol, node),
+        node,
+        context
+      );
+      let value: Value<any> | null = null;
+      if (symbol.declarations && symbol.declarations.length > 0) {
+        if (symbol.declarations.length === 1) {
+          const decl = symbol.declarations[0]!;
+          const declType = checker.getTypeAtLocation(decl.parent);
 
-      if (jsType.cust?.fieldNames.includes(propName)) {
-        const objPtr = instr.strictConvert(target, jsType.pointerOf());
-        const custPtr = jsType.gep(instr.builder, objPtr, "cust");
-        return jsType.cust.load(instr.builder, custPtr, propName);
+          const ifc = declIfc(declType, decl.parent);
+          if (propName in ifc.shape) {
+            const propIndex = Object.keys(ifc.shape).indexOf(propName);
+            const propType = ifc.shape[propName]!;
+
+            const retval = instr.alloca("val", propType);
+            const valBlock = instr.block(context.currentFunc()!.func, "val");
+
+            const autoId = types.vtable.fields.itable.load(
+              builder,
+              types.vtable.gep(
+                builder,
+                jsObject.load(builder, targetPtr, "vtable"),
+                "itable"
+              ),
+              "autoId"
+            );
+
+            const isAuto = instr.icmpEq(
+              "is_auto",
+              autoId,
+              i32.constValue(ifc.id)
+            );
+
+            const autoBlock = instr.block(context.currentFunc()!.func, "auto");
+            const nonAutoBlock = instr.block(
+              context.currentFunc()!.func,
+              "non_auto"
+            );
+            instr.condBr(isAuto, autoBlock, nonAutoBlock);
+
+            instr.insertPoint(autoBlock);
+            const objPtr = instr.cast(
+              "obj_ptr",
+              targetPtr,
+              jslib.values.jsEmptyObject
+            );
+            const custPtr = jslib.values.jsEmptyObject.gep(
+              builder,
+              objPtr,
+              "cust"
+            );
+            const ifcPtr = instr.cast("ifc_ptr", custPtr, ifc.shapeType);
+            const autoVal = ifc.shapeType.load(builder, ifcPtr, propName);
+            instr.store(retval, autoVal);
+
+            instr.br(valBlock);
+
+            instr.insertPoint(nonAutoBlock);
+            const fieldsPtr = jslib.jsObject.getIfc(
+              targetPtr,
+              i32.constValue(ifc.id)
+            );
+
+            const isIfcNull = instr.isNull(fieldsPtr);
+            const noIfcBlock = instr.block(
+              context.currentFunc()!.func,
+              "no_ifc"
+            );
+            const ifcBlock = instr.block(context.currentFunc()!.func, "ifc");
+            instr.condBr(isIfcNull, noIfcBlock, ifcBlock);
+
+            instr.insertPoint(ifcBlock);
+
+            const fieldPtr = instr.gepArray(
+              "field_ptr",
+              fieldsPtr,
+              i32.constValue(propIndex)
+            );
+            const offset = vtableIfcField.load(builder, fieldPtr, "offset");
+
+            const targetPtrAsInt = builder.CreatePtrToInt(
+              targetPtr.llValue,
+              i64.llType
+            );
+            const jsObjectSize = jsObject.sizeof(builder);
+            const offset64 = builder.CreateIntCast(
+              offset.llValue,
+              i64.llType,
+              true
+            );
+
+            const offsetPtrInt = builder.CreateAdd(
+              builder.CreateAdd(targetPtrAsInt, jsObjectSize.llValue),
+              offset64
+            );
+            const offsetPtr = builder.CreateIntToPtr(
+              offsetPtrInt,
+              propType.pointerOf().llType
+            );
+
+            const ifcValue = instr.load(
+              "ifc_val",
+              new Pointer(propType, offsetPtr)
+            );
+            instr.store(retval, ifcValue);
+            instr.br(valBlock);
+
+            // Fallback to field search.
+            instr.insertPoint(noIfcBlock);
+            const keyStr = types.jsString.constValue(instr, propName);
+            const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
+            const boxedValue = jslib.jsObject.getField(targetPtr, keyPtr);
+            const unboxedValue = instr.strictConvert(boxedValue, valueType);
+            instr.store(retval, unboxedValue);
+            instr.br(valBlock);
+
+            instr.insertPoint(valBlock);
+            value = instr.load("val", retval);
+          }
+        } else {
+          throw new Error("Multiple interfaces yet supported!");
+        }
+        return value;
       }
     }
 
     // Fallback to map read.
     const keyStr = types.jsString.constValue(instr, propName);
     const keyPtr = instr.globalConstVar("jss", keyStr).ptr;
-    return jslib.jsObject.getField(target, keyPtr);
+    return jslib.jsObject.getField(targetPtr, keyPtr);
   };
 }

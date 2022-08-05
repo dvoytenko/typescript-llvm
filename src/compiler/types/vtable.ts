@@ -5,6 +5,7 @@ import { StructFields, StructType } from "./struct";
 
 export interface VTableStruct extends StructFields {
   fields: VTableFields;
+  itable: VTableITable;
 }
 
 export interface VTableFieldsStruct extends StructFields {
@@ -20,10 +21,29 @@ export interface VTableFieldStruct extends StructFields {
   offset: I32Type;
 }
 
+export interface VTableITableStruct extends StructFields {
+  autoId: I32Type;
+  length: I32Type;
+  ifcs: PointerType<VTableIfc>;
+}
+
+export interface VTableIfcStruct extends StructFields {
+  id: I32Type;
+  fields: PointerType<VTableIfcField>;
+}
+
+export interface VTableIfcFieldStruct extends StructFields {
+  jsType: I32Type;
+  // Have to use i8 here. For some reason, C cannot create structs with i1.
+  boxed: I8Type;
+  offset: I32Type;
+}
+
 export class VTable extends StructType<VTableStruct> {
   constructor(context: llvm.LLVMContext, jsString: JsString) {
     super(context, "struct.VTable", {
       fields: new VTableFields(context, jsString),
+      itable: new VTableITable(context),
     });
   }
 }
@@ -41,6 +61,35 @@ export class VTableField extends StructType<VTableFieldStruct> {
   constructor(context: llvm.LLVMContext, jsString: JsString) {
     super(context, "struct.VTableField", {
       field: jsString.pointerOf(),
+      jsType: new I32Type(context),
+      boxed: new I8Type(context),
+      offset: new I32Type(context),
+    });
+  }
+}
+
+export class VTableITable extends StructType<VTableITableStruct> {
+  constructor(context: llvm.LLVMContext) {
+    super(context, "struct.VTableITable", {
+      autoId: new I32Type(context),
+      length: new I32Type(context),
+      ifcs: new VTableIfc(context).pointerOf(),
+    });
+  }
+}
+
+export class VTableIfc extends StructType<VTableIfcStruct> {
+  constructor(context: llvm.LLVMContext) {
+    super(context, "struct.VTableIfc", {
+      id: new I32Type(context),
+      fields: new VTableIfcField(context).pointerOf(),
+    });
+  }
+}
+
+export class VTableIfcField extends StructType<VTableIfcFieldStruct> {
+  constructor(context: llvm.LLVMContext) {
+    super(context, "struct.VTableIfcField", {
       jsType: new I32Type(context),
       boxed: new I8Type(context),
       offset: new I32Type(context),

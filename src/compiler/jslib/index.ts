@@ -14,12 +14,14 @@ import {
   JsUnknownType2,
   JsValueType,
 } from "../types/jsvalue";
-import { VTable } from "../types/vtable";
+import { StructType } from "../types/struct";
+import { VTable, VTableIfcField } from "../types/vtable";
 
 export interface JslibValues {
   jsNull: Pointer<JsNullType>;
   zero: Pointer<JsNumberType>;
   vtableEmpty: Pointer<VTable>;
+  jsEmptyObject: JsCustObject;
 }
 
 type AddAnyArgs = [
@@ -62,6 +64,7 @@ interface JsObjectLib {
     key: Pointer<JsValueType<any, any>>,
     value: Pointer<JsValueType<any, any>>
   ): void;
+  getIfc(ptr: Pointer<JsObject>, id: Value<I32Type>): Pointer<VTableIfcField>;
 }
 
 export interface Jslib {
@@ -96,12 +99,22 @@ export function jslibFactory(gen: Gen): Jslib {
         length: i32.constValue(0),
         fields: vtable.fields.fields.fields.fields.nullptr(),
       }),
+      itable: vtable.fields.itable.createConst({
+        autoId: i32.constValue(-1),
+        length: i32.constValue(0),
+        ifcs: vtable.fields.itable.fields.ifcs.nullptr(),
+      }),
     })
   ).ptr;
   const values: JslibValues = {
     jsNull,
     zero,
     vtableEmpty,
+    jsEmptyObject: types.jsCustObject(
+      "JsCustObject.None",
+      new StructType(types.context, "None", {}),
+      vtableEmpty
+    ),
   };
   const funcs: JslibFunctions = {
     addAny: addAnyFunctionFactory(gen),
@@ -116,9 +129,6 @@ export function jslibFactory(gen: Gen): Jslib {
     sub: subFactory(gen, values, funcs),
     strictEq: strictEqFactory(gen, values, funcs),
     jsObject: jsObjectFactory(gen, values),
-    // globalJsStringConst: (s: string) => {
-    //   const jss = types.jsString.constValue(s);
-    // },
   };
 }
 
@@ -282,7 +292,8 @@ function jsObjectFactory(
   { types, instr }: Gen,
   values: JslibValues
 ): JsObjectLib {
-  const { voidType, jsValue, jsString, jsObject, vtable } = types;
+  const { voidType, jsValue, jsString, jsObject, vtable, vtableIfcField, i32 } =
+    types;
   const jsStringPtr = jsString.pointerOf();
   const jsObjectPtr = jsObject.pointerOf();
   const jsValuePtr = jsValue.pointerOf();
@@ -311,6 +322,10 @@ function jsObjectFactory(
     "jsObject_setField",
     types.func(voidType, [jsObjectPtr, jsStringPtr, jsValuePtr])
   );
+  const vTable_getIfc = instr.func(
+    "vTable_getIfc",
+    types.func(vtableIfcField.pointerOf(), [jsObjectPtr, i32])
+  );
 
   return {
     create(jsType: JsCustObject) {
@@ -337,6 +352,13 @@ function jsObjectFactory(
     ) {
       const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
       instr.callVoid(jsObject_setField, [ptr0, keyToString(key), value]);
+    },
+    getIfc(
+      ptr: Pointer<JsObject>,
+      id: Value<I32Type>
+    ): Pointer<VTableIfcField> {
+      const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
+      return instr.call("get_ifc", vTable_getIfc, [ptr0, id]);
     },
   };
 }

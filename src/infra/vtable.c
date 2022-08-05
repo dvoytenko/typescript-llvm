@@ -10,7 +10,6 @@ static const int JSOBJECT_SIZE = sizeof(JsObject);
 
 JsValue* vTable_getField(JsObject* ptr, JsString* fieldName) {
   VTable* vtable = ptr->vtable;
-  // VTableFields* fields = &vtable->fields;
   int length = vtable->fields.length;
   if (length == 0) {
     return NULL;
@@ -88,4 +87,22 @@ bool vTable_setField(JsObject* ptr, JsString* key, JsValue* val) {
   }
   */
   return false;
+}
+
+VTableIfcField* vTable_getIfc(JsObject* ptr, int id) {
+  VTable* vtable = ptr->vtable;
+  int length = vtable->itable.length;
+  if (length == 0) {
+    return NULL;
+  }
+
+  VTableIfc* ifcs = vtable->itable.ifcs;
+  // TODO: fast search.
+  for (int i = 0; i < length; i++) {
+    if (ifcs[i].id == id) {
+      return ifcs[i].fields;
+      break;
+    }
+  }
+  return NULL;
 }
