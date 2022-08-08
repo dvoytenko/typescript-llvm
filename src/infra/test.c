@@ -28,74 +28,82 @@ typedef struct JsCustObject1 {
   struct Cust1 cust;
 } JsCustObject1;
 
+int runner(int value) {
+  return value * value;
+}
+
 int main(void) {
   struct timeval tv1, tv2;
   gettimeofday(&tv1, NULL);
 
-  JsNumber jsn = {.jsType = NUMBER, .value = 11};
-  printf("num: %s\n", jsValue_debug((JsValue*) &jsn));
+  for (int i = 0; i < 1000; i++) {
+    runner(i);
+  }
 
-  VTable vtable = {.fields = {.length = 0, .fields = NULL}};
-  JsObject jsv;
-  jsObject_init(&jsv, &vtable);
+  // JsNumber jsn = {.jsType = NUMBER, .value = 11};
+  // printf("num: %s\n", jsValue_debug((JsValue*) &jsn));
 
-  JsString key;
-  char keyS[1] = {'a'};
-  jsString_init(&key, 1, keyS);
-  printf("key: %s\n", jsValue_debug((JsValue*) &key));
+  // VTable vtable = {.fields = {.length = 0, .fields = NULL}};
+  // JsObject jsv;
+  // jsObject_init(&jsv, &vtable);
 
-  JsValue* val1 = jsObject_getField(&jsv, &key);
-  printf("getField: %s\n", jsValue_debug((JsValue*) val1));
+  // JsString key;
+  // char keyS[1] = {'a'};
+  // jsString_init(&key, 1, keyS);
+  // printf("key: %s\n", jsValue_debug((JsValue*) &key));
 
-  JsString val;
-  char valS[1] = {'A'};
-  jsString_init(&val, 1, valS);
-  jsObject_setField(&jsv, &key, (JsValue*) &val);
+  // JsValue* val1 = jsObject_getField(&jsv, &key);
+  // printf("getField: %s\n", jsValue_debug((JsValue*) val1));
 
-  JsValue* val2 = jsObject_getField(&jsv, &key);
-  printf("getField2: %s\n", jsValue_debug((JsValue*) val2));
+  // JsString val;
+  // char valS[1] = {'A'};
+  // jsString_init(&val, 1, valS);
+  // jsObject_setField(&jsv, &key, (JsValue*) &val);
 
-  JsString equiv;
-  char equivS[1] = {'a'};
-  jsString_init(&equiv, 1, equivS);
+  // JsValue* val2 = jsObject_getField(&jsv, &key);
+  // printf("getField2: %s\n", jsValue_debug((JsValue*) val2));
 
-  printf(
-    "eq: self=%d, equiv=%d, other=%d, diff type=%d\n",
-    jsValue_strictEq((JsValue*) &key, (JsValue*) &key),
-    jsValue_strictEq((JsValue*) &key, (JsValue*) &equiv),
-    jsValue_strictEq((JsValue*) &key, (JsValue*) &val),
-    jsValue_strictEq((JsValue*) &key, (JsValue*) &jsn));
+  // JsString equiv;
+  // char equivS[1] = {'a'};
+  // jsString_init(&equiv, 1, equivS);
+
+  // printf(
+  //   "eq: self=%d, equiv=%d, other=%d, diff type=%d\n",
+  //   jsValue_strictEq((JsValue*) &key, (JsValue*) &key),
+  //   jsValue_strictEq((JsValue*) &key, (JsValue*) &equiv),
+  //   jsValue_strictEq((JsValue*) &key, (JsValue*) &val),
+  //   jsValue_strictEq((JsValue*) &key, (JsValue*) &jsn));
   
-  JsNumber jsn2 = {.jsType = NUMBER, .value = 3};
-  printf("add: %s\n", jsValue_debug(jsValue_add((JsValue*) &jsn, (JsValue*) &jsn2)));
-  printf("sub: %s\n", jsValue_debug((JsValue*) jsValue_sub((JsValue*) &jsn, (JsValue*) &jsn2)));
+  // JsNumber jsn2 = {.jsType = NUMBER, .value = 3};
+  // printf("add: %s\n", jsValue_debug(jsValue_add((JsValue*) &jsn, (JsValue*) &jsn2)));
+  // printf("sub: %s\n", jsValue_debug((JsValue*) jsValue_sub((JsValue*) &jsn, (JsValue*) &jsn2)));
 
-  char keySb[1] = {'b'};
+  // char keySb[1] = {'b'};
 
-  VTableField field1a = {
-    .field = jsString_create(1, keyS),
-    .jsType = NUMBER,
-    .boxed = false,
-    .offset = offsetof(struct Cust1, a)
-  };
-  VTableField field1b = {
-    .field = jsString_create(1, keySb),
-    .jsType = STRING,
-    .boxed = true,
-    .offset = offsetof(struct Cust1, b)
-  };
-  VTableField fields1[2] = {field1a, field1b};
-  VTable vtable1 = {.fields = {.length = 2, .fields = fields1}};
-  printf("vtable: a=%d, b=%d\n", field1a.offset, field1b.offset);
+  // VTableField field1a = {
+  //   .field = jsString_create(1, keyS),
+  //   .jsType = NUMBER,
+  //   .boxed = false,
+  //   .offset = offsetof(struct Cust1, a)
+  // };
+  // VTableField field1b = {
+  //   .field = jsString_create(1, keySb),
+  //   .jsType = STRING,
+  //   .boxed = true,
+  //   .offset = offsetof(struct Cust1, b)
+  // };
+  // VTableField fields1[2] = {field1a, field1b};
+  // VTable vtable1 = {.fields = {.length = 2, .fields = fields1}};
+  // printf("vtable: a=%d, b=%d\n", field1a.offset, field1b.offset);
 
-  JsCustObject1 jsv1;
-  jsv1.cust.a = 17;
-  jsv1.cust.b = &val;
-  JsObject* jsv1o = (JsObject*) &jsv1;
-  jsObject_init(jsv1o, &vtable1);
-  printf("vtable values: a=%s, b=%s\n",
-    jsValue_debug(vTable_getField(jsv1o, field1a.field)),
-    jsValue_debug(vTable_getField(jsv1o, field1b.field)));
+  // JsCustObject1 jsv1;
+  // jsv1.cust.a = 17;
+  // jsv1.cust.b = &val;
+  // JsObject* jsv1o = (JsObject*) &jsv1;
+  // jsObject_init(jsv1o, &vtable1);
+  // printf("vtable values: a=%s, b=%s\n",
+  //   jsValue_debug(vTable_getField(jsv1o, field1a.field)),
+  //   jsValue_debug(vTable_getField(jsv1o, field1b.field)));
 
   gettimeofday(&tv2, NULL);
   double elapsedMillis = (double) (tv2.tv_usec - tv1.tv_usec) / 1e3 +
