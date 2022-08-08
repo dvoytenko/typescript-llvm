@@ -30,5 +30,5 @@ wasm-ld one.o -o one.wasm -allow-undefined --entry "main"
 To see WAT (see [wabt](https://github.com/WebAssembly/wabt)):
 
 ```sh
-wasm2wat one.wasm
+wasm2wat -o one.wat one.wasm
 ```
