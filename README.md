@@ -1,5 +1,3 @@
-
-
 ### Assembly to bitcode:
 
 ```sh
@@ -20,4 +18,17 @@ gcc x.o
 ```sh
 opt -Oz -S -o x.Oz.ll x.ll
 # --metarenamer - rename everything
+```
+
+### To WASM:
+
+```sh
+llc -mtriple=wasm32-unknown-unknown -O3 -filetype=obj one.ll -o one.o
+wasm-ld one.o -o one.wasm -allow-undefined --entry "main"
+```
+
+To see WAT (see [wabt](https://github.com/WebAssembly/wabt)):
+
+```sh
+wasm2wat one.wasm
 ```
