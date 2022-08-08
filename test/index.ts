@@ -5,7 +5,7 @@ import { exec } from 'child_process';
 import { compile } from '../src/compiler';
 import { compile as compile2} from '../src/compiler/compiler2';
 
-const TEST = 'three';
+const TEST = 'six';
 
 console.log('Any specific test specified? ', process.argv[2]);
 
@@ -25,7 +25,7 @@ async function run(dir: string) {
       await run(file);
     } else if ((file.endsWith('.ts') || file.endsWith('.tsx'))
         && !file.endsWith('.d.ts')
-        && !file.endsWith('jsx.ts')) {
+        && !file.startsWith('lib-')) {
       await test(path.relative(DATA_DIR, file));
     }
   }

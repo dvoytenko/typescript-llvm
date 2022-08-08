@@ -1,8 +1,9 @@
-import {jsx, ComponentType} from './jsx';
+import {jsx, ComponentType} from './lib-jsx';
 
-export function render() {
+export function render(v: number) {
   return (
-    <div label={'un'}>
+    <div label={v}>
+      hello
       {/* <Text>hi world!</Text> */}
       {/* <Hr/> */}
     </div>
@@ -16,3 +17,8 @@ export function render() {
 // function Hr() {
 //   return <hr/>
 // }
+
+export function main() {
+  console.log('render(17):', render(17));
+  return 0;
+}

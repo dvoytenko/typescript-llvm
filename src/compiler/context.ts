@@ -7,6 +7,7 @@ import { TsFunction } from "./ts/func";
 import { TsIfc, TsObj } from "./ts/obj";
 import { Types } from "./types";
 import { Value } from "./types/base";
+import { StructFields } from "./types/struct";
 
 export interface CompilerContext {
   module: llvm.Module;
@@ -21,12 +22,13 @@ export interface CompilerContext {
   ref(node: ts.Node): Value<any>;
 
   declFunction(node: ts.FunctionDeclaration): TsFunction;
+  getFunction(name: string): TsFunction | null;
   genStatement(node: ts.Statement);
   genExpr(node: ts.Expression): Value<any> | TsFunction | null;
 
   genInBlock(block: llvm.BasicBlock, gen: () => void, finish: () => void);
   terminateBlock();
 
-  declObjType(tsType: ts.Type, node: ts.Node): TsObj;
-  declIfc(tsType: ts.Type, node: ts.Node): TsIfc;
+  declObjType(name: string, shape: StructFields): TsObj;
+  declIfc(name: string, shape: StructFields): TsIfc;
 }

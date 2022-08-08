@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <sys/time.h>
 #include "jsvalue.h"
 #include "jsstring.h"
 #include "jsvmap.h"
@@ -28,6 +29,9 @@ typedef struct JsCustObject1 {
 } JsCustObject1;
 
 int main(void) {
+  struct timeval tv1, tv2;
+  gettimeofday(&tv1, NULL);
+
   JsNumber jsn = {.jsType = NUMBER, .value = 11};
   printf("num: %s\n", jsValue_debug((JsValue*) &jsn));
 
@@ -92,6 +96,11 @@ int main(void) {
   printf("vtable values: a=%s, b=%s\n",
     jsValue_debug(vTable_getField(jsv1o, field1a.field)),
     jsValue_debug(vTable_getField(jsv1o, field1b.field)));
+
+  gettimeofday(&tv2, NULL);
+  double elapsedMillis = (double) (tv2.tv_usec - tv1.tv_usec) / 1e3 +
+         (double) (tv2.tv_sec - tv1.tv_sec) * 1e3;
+  printf ("Total time = %f millis\n", elapsedMillis);
 
   return 0;
 }

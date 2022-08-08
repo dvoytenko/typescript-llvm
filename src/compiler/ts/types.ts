@@ -70,13 +70,20 @@ export function tsToGType(
     return types.jsNumber.pointerOf();
   }
 
-  if (flags & ts.TypeFlags.Object) {
+  if (isObjectType(tsType)) {
     flags &= ~ts.TypeFlags.Object;
     if (flags !== 0) {
       throw new Error(`not all flags picked up: ${flags} ${flags.toString(2)}`);
     }
-    // QQQQ: should this be an interface instead? or open jsObject?
-    return context.declObjType(tsType, node).type.pointerOf();
+
+    if (isTypeReference(tsType) && tsType.symbol.name === "Array") {
+      // const typeArgs = context.checker.getTypeArguments(tsRefType);
+      return types.jsArray.pointerOf();
+    }
+
+    // TODO: cleanup. used to be:
+    // return context.declObjType(tsType, node).type.pointerOf();
+    return types.jsObject.pointerOf();
   }
 
   /* type: { a: number; b: number; }
@@ -128,7 +135,34 @@ export function tsToGType(
         PrimitiveUnion (2 ^ 15)
   */
 
+  /* type: any[]
+      flags: 524288
+        Object (2 ^ 19)
+        DefinitelyNonNullable
+        StructuredType
+        StructuredOrInstantiable
+        ObjectFlagsType
+        Narrowable
+        IncludesMask
+        NotPrimitiveUnion
+      
+      objectFlags: 4
+        Reference (2 ^ 2)
+        ObjectTypeKindMask        
+  */
+
   return types.jsValue.pointerOf();
+}
+
+function isObjectType(tsType: ts.Type): tsType is ts.ObjectType {
+  return (tsType.flags & ts.TypeFlags.Object) !== 0;
+}
+
+function isTypeReference(tsType: ts.Type): tsType is ts.TypeReference {
+  return (
+    isObjectType(tsType) &&
+    (tsType.objectFlags & ts.ObjectFlags.Reference) !== 0
+  );
 }
 
 export function tsToStructFields(

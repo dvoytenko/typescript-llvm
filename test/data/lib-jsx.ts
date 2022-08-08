@@ -31,6 +31,33 @@ declare var React: any;
 
 
 
+// export interface Node<P = {}> {
+//   type: string|ComponentType<P>;
+//   props: P;
+//   children: any[];
+// }
+
+// export interface ComponentType<P = {}> {
+//   (props: Props<P>): Node<P>|null|undefined;
+// }
+
+// export type Props<P = {}> = P & {children?: any};
+
+// export function jsx<E extends keyof JSX.IntrinsicElements>(
+//     type: E, props: JSX.IntrinsicElements[E], ...children: any[]): Node<JSX.IntrinsicElements[E]>;
+
+// export function jsx<P>(
+//     type: ComponentType<P>, props: P, ...children: any[]): Node<P>;
+
+// export function jsx(type: any, props: any, ...children: any[]): Node<any> {
+//   props = props ?? {};
+//   if (children.length === 1 && children[0] == null) {
+//     children = [];
+//   }
+//   return {type, props, children};
+// }
+
+
 export interface Node<P = {}> {
   type: string|ComponentType<P>;
   props: P;
@@ -44,15 +71,6 @@ export interface ComponentType<P = {}> {
 export type Props<P = {}> = P & {children?: any};
 
 export function jsx<E extends keyof JSX.IntrinsicElements>(
-    type: E, props: JSX.IntrinsicElements[E], ...children: any[]): Node<JSX.IntrinsicElements[E]>;
-
-export function jsx<P>(
-    type: ComponentType<P>, props: P, ...children: any[]): Node<P>;
-
-export function jsx(type: any, props: any, ...children: any[]): Node<any> {
-  props = props ?? {};
-  if (children.length === 1 && children[0] == null) {
-    children = [];
-  }
-  return {type, props, children};
+    type: E, props: JSX.IntrinsicElements[E], children: any[]): Node<JSX.IntrinsicElements[E]> {
+  return {type: type, props: props, children: children};
 }

@@ -39,7 +39,7 @@ export interface Instr {
     type: T,
     arraySize?: Value<I64Type> | null
   ) => Pointer<T>;
-  cast: <T extends Type>(
+  castPtr: <T extends Type>(
     name: string,
     ptr: Pointer<any>,
     toType: T
@@ -133,7 +133,7 @@ export function instrFactory(
       new Pointer(types.i8, globalStrings.get(`s.${value || "empty"}`, value)),
     alloca: allocaFactory(builder),
     malloc,
-    cast: castFactory(builder),
+    castPtr: castFactory(builder),
     strictConvert: strictConvertFactory(builder, types, malloc),
     add: addFactory(builder),
     sub: subFactory(builder),

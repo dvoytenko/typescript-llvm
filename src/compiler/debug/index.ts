@@ -58,7 +58,7 @@ function debugValueFactory(
       value.type instanceof PointerType &&
       value.type.toType instanceof JsValueType
     ) {
-      const jsv = instr.cast("jsv", value, types.jsValue);
+      const jsv = instr.castPtr("jsv", value, types.jsValue);
       return instr.call("jsv_deb", debugJsvFunc, [jsv]);
     }
 

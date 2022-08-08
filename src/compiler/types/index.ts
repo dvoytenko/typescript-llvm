@@ -10,6 +10,7 @@ import {
 } from "./base";
 import { BoolType } from "./bool";
 import { FunctionType } from "./func";
+import { JsArray } from "./jsarray";
 import { JsNullType } from "./jsnull";
 import { JsNumberType } from "./jsnumber";
 import { JsCustObject, JsObject } from "./jsobject";
@@ -43,6 +44,7 @@ export interface Types {
   jsNull: JsNullType;
   jsNumber: JsNumberType;
   jsString: JsString;
+  jsArray: JsArray;
   jsObject: JsObject;
   jsCustObject: (
     name: string,
@@ -55,6 +57,7 @@ export function types(context: llvm.LLVMContext): Types {
   // TODO: singleton
   const jsValue = new JsUnknownType(context);
   const jsString = new JsString(context);
+  const jsArray = new JsArray(context, jsValue);
   const vtable = new VTable(context, jsString);
   const vtableIfc = vtable.fields.itable.fields.ifcs.toType;
   const vtableIfcField = vtableIfc.fields.fields.toType;
@@ -81,6 +84,7 @@ export function types(context: llvm.LLVMContext): Types {
     jsNull: new JsNullType(context),
     jsNumber: new JsNumberType(context),
     jsString,
+    jsArray,
     jsObject: new JsObject(context, vtable, jsvMap),
     jsCustObject: (
       name: string,

@@ -4,8 +4,16 @@ import { Function } from "../instr/func";
 import { Globals } from "../instr/globals";
 import { GlobalVar } from "../instr/globalvar";
 import { Types } from "../types";
-import { I32Type, Pointer, PointerType, Value, VoidType } from "../types/base";
+import {
+  I32Type,
+  Pointer,
+  PointerType,
+  Type,
+  Value,
+  VoidType,
+} from "../types/base";
 import { BoolType } from "../types/bool";
+import { JsArray } from "../types/jsarray";
 import { JsNullType } from "../types/jsnull";
 import { JsNumberType } from "../types/jsnumber";
 import { JsCustObject, JsObject } from "../types/jsobject";
@@ -55,6 +63,10 @@ interface StrictEqInstr {
   (name: string, a: Value<any>, b: Value<any>): Value<BoolType>;
 }
 
+interface JsArrayLib {
+  createWithValues(values: Pointer<Type>[]): Pointer<JsArray>;
+}
+
 interface JsObjectLib {
   create(jsType: JsCustObject): Pointer<JsCustObject>;
   getField(
@@ -80,6 +92,7 @@ export interface Jslib {
   add: AddInstr;
   sub: SubInstr;
   strictEq: StrictEqInstr;
+  jsArray: JsArrayLib;
   jsObject: JsObjectLib;
   jsString: JsStringLib;
 }
@@ -92,7 +105,7 @@ export interface Gen {
 
 export function jslibFactory(gen: Gen): Jslib {
   const { types, instr } = gen;
-  const { i32, jsNull: jsNullType, jsNumber, jsString, vtable } = types;
+  const { i32, jsNull: jsNullType, jsNumber, vtable } = types;
   const jsNull = instr.globalConstVar(
     "jsnull",
     jsNullType.createConst({ jsType: i32.constValue(JsType.NULL) })
@@ -134,6 +147,7 @@ export function jslibFactory(gen: Gen): Jslib {
     add: addFactory(gen, values, funcs),
     sub: subFactory(gen, values, funcs),
     strictEq: strictEqFactory(gen, values, funcs),
+    jsArray: jsArrayFactory(gen),
     jsObject: jsObjectFactory(gen, values),
     jsString: jsStringFactory(gen),
   };
@@ -296,6 +310,38 @@ function strictEqAnyFunctionFactory({ instr, types }: Gen) {
     ]),
     ["readonly"]
   );
+}
+
+function jsArrayFactory({ types, instr }: Gen): JsArrayLib {
+  const { jsArray, jsValue, i32, i64 } = types;
+  return {
+    createWithValues(values: Pointer<Type>[]): Pointer<JsArray> {
+      const arr = instr.malloc(
+        "arr",
+        jsValue.pointerOf(),
+        i64.constValue(values.length)
+      );
+      for (let i = 0; i < values.length; i++) {
+        const value = values[i];
+        const convValue = instr.strictConvert(value, jsValue.pointerOf());
+        const valuePtr = new Pointer(
+          arr.type.toType,
+          instr.builder.CreateGEP(jsValue.pointerOf().llType, arr.llValue, [
+            i32.constValue(i).llValue,
+          ])
+        );
+        instr.store(valuePtr, convValue);
+      }
+
+      const ptr = instr.malloc("jsa", jsArray);
+      jsArray.storeStruct(instr.builder, ptr, {
+        jsType: i32.constValue(jsArray.jsType),
+        length: i32.constValue(values.length),
+        arr,
+      });
+      return ptr;
+    },
+  };
 }
 
 function jsObjectFactory(

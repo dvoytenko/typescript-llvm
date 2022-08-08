@@ -1,5 +1,4 @@
 import llvm from "llvm-bindings";
-import ts from "typescript";
 import { CompilerContext } from "../context";
 import { GlobalVar } from "../instr/globalvar";
 import { Pointer, Type, Value } from "../types/base";
@@ -13,7 +12,6 @@ export class TsObj {
 
   constructor(
     public readonly name: string,
-    public readonly tsType: ts.Type,
     public readonly shape: StructFields,
     public readonly type: JsCustObject,
     public readonly vtableVar: GlobalVar<VTable>,
@@ -25,7 +23,6 @@ export class TsIfc {
   constructor(
     public readonly id: number,
     public readonly name: string,
-    public readonly tsType: ts.Type,
     public readonly shape: StructFields,
     public readonly shapeType: StructType<any>
   ) {}

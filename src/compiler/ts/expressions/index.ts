@@ -2,7 +2,8 @@ import ts from "typescript";
 import { CompilerContext } from "../../context";
 import { Pointer, Type, Value } from "../../types/base";
 import { TsFunction } from "../func";
-import { tsToGTypeUnboxed } from "../types";
+import { tsToGTypeUnboxed, tsToStructFields } from "../types";
+import { jsxExprFactories } from "./jsx";
 
 export type ExprHandler<E extends ts.Expression> = (
   st: E
@@ -12,12 +13,13 @@ export type ExprHandlers = {
   [K in ts.SyntaxKind]?: ExprHandler<any>;
 };
 
-type ExprFactories = {
+export type ExprFactories = {
   [K in ts.SyntaxKind]?: (context: CompilerContext) => ExprHandler<any>;
 };
 
 export function expressions(context: CompilerContext): ExprHandlers {
   const factories: ExprFactories = {
+    [ts.SyntaxKind.ParenthesizedExpression]: parenthesizedExpressionFactory,
     [ts.SyntaxKind.CallExpression]: callFactory,
     [ts.SyntaxKind.Identifier]: identifierFactory,
     [ts.SyntaxKind.NullKeyword]: nullFactory,
@@ -25,10 +27,18 @@ export function expressions(context: CompilerContext): ExprHandlers {
     [ts.SyntaxKind.BinaryExpression]: binaryExpressionFactory,
     [ts.SyntaxKind.ObjectLiteralExpression]: objectLiteralExpressionFactory,
     [ts.SyntaxKind.PropertyAccessExpression]: propertyAccessExpressionFactory,
+    ...jsxExprFactories,
   };
   return Object.fromEntries(
     Object.entries(factories).map(([kind, factory]) => [kind, factory(context)])
   );
+}
+
+function parenthesizedExpressionFactory(context: CompilerContext) {
+  const { genExpr } = context;
+  return (node: ts.ParenthesizedExpression) => {
+    return genExpr(node.expression);
+  };
 }
 
 function callFactory(context: CompilerContext) {
@@ -168,7 +178,10 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
   return (node: ts.ObjectLiteralExpression) => {
     const tsType = checker.getTypeAtLocation(node);
     console.log("QQQ: obj type: ", checker.typeToString(tsType));
-    const tsObj = declObjType(tsType, node);
+    const tsObj = declObjType(
+      checker.typeToString(tsType),
+      tsToStructFields(tsType, node, context)
+    );
     // const jsType = (
     //   tsToGType(tsType, node, context) as PointerType<JsCustObject>
     // ).toType;
@@ -179,9 +192,17 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
     const ptr = jslib.jsObject.create(jsType);
     const custPtr = jsType.gep(instr.builder, ptr, "cust");
     for (const prop of node.properties) {
+      // QQQ: support shorthand properties as well.
       const propAssignment = prop as ts.PropertyAssignment;
       if (!ts.isIdentifier(propAssignment.name)) {
         throw new Error("only identifiers supported as object keys");
+      }
+      if (!propAssignment.initializer) {
+        throw new Error(
+          `no prop initializer for ${propAssignment.name.text} in ${
+            ts.SyntaxKind[prop.kind]
+          }`
+        );
       }
       const propValue = genExpr(propAssignment.initializer);
       if (!(propValue instanceof Value<any>)) {
@@ -218,7 +239,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
       throw new Error("cannot use value for object access expression");
     }
 
-    const targetPtr = instr.cast("cast_to_jsobj", target, jsObject);
+    const targetPtr = instr.castPtr("cast_to_jsobj", target, jsObject);
     const propName = node.name.text;
     const symbol = checker.getSymbolAtLocation(node.name);
     if (symbol) {
@@ -233,7 +254,10 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
           const decl = symbol.declarations[0]!;
           const declType = checker.getTypeAtLocation(decl.parent);
 
-          const ifc = declIfc(declType, decl.parent);
+          const ifc = declIfc(
+            checker.typeToString(declType),
+            tsToStructFields(declType, node, context)
+          );
           // QQQ: alternative:
           // - jsObject_getStructInt(ptr, ifc, index)
           // - jsObject_getStructBool(ptr, ifc, index)
@@ -270,7 +294,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
             instr.condBr(isAuto, autoBlock, nonAutoBlock);
 
             instr.insertPoint(autoBlock);
-            const objPtr = instr.cast(
+            const objPtr = instr.castPtr(
               "obj_ptr",
               targetPtr,
               jslib.values.jsEmptyObject
@@ -280,7 +304,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
               objPtr,
               "cust"
             );
-            const ifcPtr = instr.cast("ifc_ptr", custPtr, ifc.shapeType);
+            const ifcPtr = instr.castPtr("ifc_ptr", custPtr, ifc.shapeType);
             const autoVal = ifc.shapeType.load(builder, ifcPtr, propName);
             instr.store(retval, autoVal);
 

@@ -8,10 +8,9 @@ import { expressions, ExprHandlers } from "./ts/expressions";
 import { declFunction, TsFunction } from "./ts/func";
 import { TsObj, TsIfc, completeVTable } from "./ts/obj";
 import { StatementHandlers, statements } from "./ts/statements";
-import { tsToStructFields } from "./ts/types";
 import { types as typesFactory, type Types } from "./types";
 import { Value } from "./types/base";
-import { StructType } from "./types/struct";
+import { StructFields, StructType } from "./types/struct";
 
 export function compile(file: string): string {
   console.log("COMPILE: ", file);
@@ -39,6 +38,7 @@ class Compiler {
   private readonly statements: StatementHandlers;
   private readonly expressions: ExprHandlers;
 
+  private readonly functionsByName: Map<string, TsFunction> = new Map();
   private readonly functions: Map<ts.Node, TsFunction> = new Map();
   private readonly refs: Map<ts.Node, Value<any>> = new Map();
   private readonly objTypes: Map<string, TsObj> = new Map();
@@ -97,6 +97,7 @@ class Compiler {
       currentFunc: () => compiler.currentFunc,
       ref: this.ref.bind(this),
       declFunction: this.declFunction.bind(this),
+      getFunction: (name: string) => this.functionsByName.get(name) ?? null,
       genStatement: this.genStatement.bind(this),
       genExpr: this.genExpr.bind(this),
       genInBlock: (block, gen, finish) => {
@@ -184,6 +185,7 @@ class Compiler {
 
     const funcObj = new TsFunction(node, func);
     this.functions.set(node, funcObj);
+    this.functionsByName.set(funcObj.name, funcObj);
 
     for (let i = 0; i < node.parameters.length; i++) {
       const argNode = node.parameters[i];
@@ -232,22 +234,19 @@ class Compiler {
     return handler(node);
   }
 
-  private declObjType(tsType: ts.Type, node: ts.Node): TsObj {
-    const tsTypeStr = this.checker.typeToString(tsType);
-    const key = `u/Obj<${tsTypeStr}>`;
+  private declObjType(name: string, shape: StructFields): TsObj {
+    const key = `u/Obj<${name}>`;
     let obj = this.objTypes.get(key);
     if (!obj) {
       const { types, instr } = this;
 
-      const shape = tsToStructFields(tsType, node, this.compilerContext);
-      console.log("QQQQ: declObj: ", key, shape);
       const shapeType = new StructType(
         types.context,
-        `u/Shape<${tsTypeStr}>`,
+        `u/Shape<${name}>`,
         shape
       );
 
-      const autoIfc = this.declIfc(tsType, node);
+      const autoIfc = this.declIfc(name, shape);
 
       // Create vtable.
       const { vtable, vtableIfc, i32 } = types;
@@ -255,7 +254,7 @@ class Compiler {
       const vtFieldType = vtFieldsType.fields.fields.toType;
 
       const vtableVar = instr.globalConstVar(
-        `u/VT<${tsTypeStr}>`,
+        `u/VT<${name}>`,
         vtable.createConst({
           fields: vtable.fields.fields.createConst({
             length: i32.constValue(0),
@@ -270,25 +269,23 @@ class Compiler {
       );
 
       const objType = types.jsCustObject(key, shapeType, vtableVar.ptr);
-      obj = new TsObj(tsTypeStr, tsType, shape, objType, vtableVar, autoIfc);
+      obj = new TsObj(name, shape, objType, vtableVar, autoIfc);
       this.objTypes.set(key, obj);
     }
     return obj;
   }
 
-  private declIfc(tsType: ts.Type, node: ts.Node): TsIfc {
-    const tsTypeStr = this.checker.typeToString(tsType);
-    const key = `u/Ifc<${tsTypeStr}>`;
+  private declIfc(name: string, shape: StructFields): TsIfc {
+    const key = `u/Ifc<${name}>`;
     let ifc = this.ifcs.get(key);
     if (!ifc) {
       const id = ++this.ifcIdCounter;
-      const shape = tsToStructFields(tsType, node, this.compilerContext);
       const shapeType = new StructType(
         this.types.context,
-        `u/Shape<${tsTypeStr}>`,
+        `u/Shape<${name}>`,
         shape
       );
-      ifc = new TsIfc(id, tsTypeStr, tsType, shape, shapeType);
+      ifc = new TsIfc(id, name, shape, shapeType);
       this.ifcs.set(key, ifc);
     }
     return ifc;
