@@ -17,6 +17,9 @@ function jsxElementFactory(context: CompilerContext) {
   const { types, instr, genExpr, getFunction, jslib } = context;
   return (node: ts.JsxElement) => {
     const props = genExpr(node.openingElement);
+    if (!(props instanceof Value) || !props.isPointer()) {
+      throw new Error("props are not a pointer");
+    }
 
     const tagName = node.openingElement.tagName.getText();
 
@@ -32,7 +35,7 @@ function jsxElementFactory(context: CompilerContext) {
         if (value == null) {
           return null;
         }
-        if (!(value instanceof Value<any>)) {
+        if (!(value instanceof Value)) {
           throw new Error(
             "cannot use value for JSX child: " +
               ts.SyntaxKind[child.kind] +
@@ -53,7 +56,7 @@ function jsxElementFactory(context: CompilerContext) {
         jslib.jsString.globalConstVar(tagName).ptr,
         types.jsValue
       ),
-      instr.castPtr("props_cast", props as Value<any>, types.jsValue),
+      instr.castPtr("props_cast", props, types.jsValue),
       childrenArray,
     ]);
   };
@@ -84,7 +87,7 @@ function jsxAttributesFactory(context: CompilerContext) {
         const propValue = prop.initializer
           ? genExpr(prop.initializer)
           : types.bool.constValue(true);
-        if (!(propValue instanceof Value<any>)) {
+        if (!(propValue instanceof Value)) {
           throw new Error("cannot use value for JSX expression");
         }
         shape[propName] = propGType;
@@ -100,7 +103,9 @@ function jsxAttributesFactory(context: CompilerContext) {
 
     const jsType = tsObj.type;
     const ptr = jslib.jsObject.create(jsType);
-    const custPtr = jsType.gep(instr.builder, ptr, "cust");
+    // QQQQ
+    // const custPtr = jsType.gep(instr.builder, ptr, "cust");
+    const custPtr = instr.gepStructField(ptr, "cust");
     for (const [propName, propValue] of Object.entries(values)) {
       const propValueType = shape[propName];
       const propValueConv = instr.strictConvert(propValue, propValueType);

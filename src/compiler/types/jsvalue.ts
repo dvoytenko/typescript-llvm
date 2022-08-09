@@ -28,7 +28,7 @@ interface JsTypeFields extends StructFields {
   jsType: I32Type;
 }
 
-export abstract class JsValueType<
+export class JsValueType<
   JST extends JsType,
   Fields extends StructFields
 > extends StructType<JsTypeFields & Fields> {

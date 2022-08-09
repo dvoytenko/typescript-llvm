@@ -5,8 +5,8 @@ import { exec } from 'child_process';
 import { compile } from '../src/compiler';
 import { compile as compile2} from '../src/compiler/compiler2';
 
-const TEST = 'six';
-const CYCLER = true;
+const TEST = 'five';
+const CYCLER = false;
 
 console.log('Any specific test specified? ', process.argv[2]);
 

@@ -45,7 +45,7 @@ function returnFactory({
       instr.ret(gFunc, types.i32.constValue(0));
     } else if (node.expression) {
       const value = genExpr(node.expression);
-      if (!(value instanceof Value<any>)) {
+      if (!(value instanceof Value)) {
         throw new Error("cannot return value");
       }
       const retType = gFunc.type.retType;
@@ -67,6 +67,7 @@ function expressionFactory({ genExpr }: CompilerContext) {
 function ifFactory({
   currentFunc,
   instr,
+  types,
   genExpr,
   genStatement,
   genInBlock,
@@ -76,7 +77,7 @@ function ifFactory({
     const gFunc = func.func;
 
     const value = genExpr(node.expression);
-    if (!(value instanceof Value<any>)) {
+    if (!(value instanceof Value) || !value.isA(types.bool)) {
       throw new Error("cannot use this value for branching");
     }
 

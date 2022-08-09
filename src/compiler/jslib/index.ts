@@ -54,13 +54,13 @@ interface AddInstr {
     a: Pointer<JsNumberType>,
     b: Pointer<JsNumberType>
   ): Pointer<JsNumberType>;
-  (name: string, a: Value<any>, b: Value<any>): Pointer<JsUnknownType>;
+  (name: string, a: Value, b: Value): Pointer<JsUnknownType>;
 }
 
 type SubInstr = AddInstr;
 
 interface StrictEqInstr {
-  (name: string, a: Value<any>, b: Value<any>): Value<BoolType>;
+  (name: string, a: Value, b: Value): Value<BoolType>;
 }
 
 interface JsArrayLib {
@@ -161,7 +161,7 @@ function addFactory(
   const { i32, jsNumber, jsValue } = types;
   const jsNumberPtr = jsNumber.pointerOf();
   const jsValuePtr = jsValue.pointerOf();
-  return (name: string, a: Value<any>, b: Value<any>): Value<any> => {
+  return (name: string, a: Value, b: Value): Value<any> => {
     // TODO: the rules are incomplete and mostly wrong.
 
     // Both values are numeric: the result is numeric.
@@ -212,7 +212,7 @@ function subFactory(
   const { i32, jsNumber, jsValue } = types;
   const jsNumberPtr = jsNumber.pointerOf();
   const jsValuePtr = jsValue.pointerOf();
-  return (name: string, a: Value<any>, b: Value<any>): Value<any> => {
+  return (name: string, a: Value, b: Value): Value<any> => {
     // TODO: the rules are incomplete and mostly wrong.
 
     // Both values are numeric: the result is numeric.
@@ -263,7 +263,7 @@ function strictEqFactory(
   const jsNullPtr = jsNull.pointerOf();
   const jsNumberPtr = jsNumber.pointerOf();
   const jsValuePtr = jsValue.pointerOf();
-  return (name: string, a: Value<any>, b: Value<any>): Value<BoolType> => {
+  return (name: string, a: Value, b: Value): Value<BoolType> => {
     // TODO: the rules are incomplete and mostly wrong.
 
     // Both values are nulls: equality is confirmed.

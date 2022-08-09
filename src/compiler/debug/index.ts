@@ -5,8 +5,8 @@ import { I8Type, IntType, Pointer, PointerType, Value } from "../types/base";
 import { JsValueType } from "../types/jsvalue";
 
 export interface Debug {
-  printf: (fmt: string, args: (Value<any> | llvm.Value)[]) => void;
-  debugValue: (value: Value<any>) => Pointer<I8Type>;
+  printf: (fmt: string, args: (Value | llvm.Value)[]) => void;
+  debugValue: (value: Value) => Pointer<I8Type>;
 }
 
 export function debugFactory(
@@ -36,7 +36,7 @@ function debugValueFactory(
     types.func(types.i8.pointerOf(), [types.jsValue.pointerOf()])
   );
 
-  return (value: Value<any>) => {
+  return (value: Value) => {
     const strPtr = instr.malloc("s", types.i8, types.i64.constValue(1000));
     if (value.type instanceof IntType) {
       const fmtInt = builder.CreateGlobalStringPtr("<i%d %d>", "fmt.int");
@@ -55,6 +55,8 @@ function debugValueFactory(
     }
 
     if (
+      value.isPointer() &&
+      // QQQ: simplify to something like `isPointerTo(JsValueType)`
       value.type instanceof PointerType &&
       value.type.toType instanceof JsValueType
     ) {
@@ -72,7 +74,7 @@ function printfFactory(
   snprintf: llvm.Function,
   puts: llvm.Function
 ) {
-  return (fmt: string, args: (Value<any> | llvm.Value)[]) => {
+  return (fmt: string, args: (Value | llvm.Value)[]) => {
     const fmtPtr = builder.CreateGlobalStringPtr(fmt, "fmt");
     const strPtr = builder.CreateAlloca(
       builder.getInt8Ty(),

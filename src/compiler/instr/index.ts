@@ -15,6 +15,7 @@ import {
 import { BoolType } from "../types/bool";
 import { FunctionArgValues, FunctionType } from "../types/func";
 import { JsValueType } from "../types/jsvalue";
+import { StructType } from "../types/struct";
 import { Function } from "./func";
 import { Globals } from "./globals";
 import { GlobalVar } from "./globalvar";
@@ -39,12 +40,27 @@ export interface Instr {
     type: T,
     arraySize?: Value<I64Type> | null
   ) => Pointer<T>;
+  // QQQ: make it return a const.
+  sizeof: (type: Type) => Value<I64Type>;
+  gepStructField: <
+    T extends StructType<any>,
+    F extends T extends StructType<infer F1> ? F1 : never,
+    K extends keyof F
+  >(
+    ptr: Pointer<T>,
+    field: K
+  ) => Pointer<F[K]>;
+  gepArray: <T extends Type>(
+    name: string,
+    ptr: Pointer<T>,
+    index: Value<IntType<any>>
+  ) => Pointer<T>;
   castPtr: <T extends Type>(
     name: string,
-    ptr: Pointer<any>,
+    ptr: Pointer,
     toType: T
   ) => Pointer<T>;
-  strictConvert: <T extends Type>(value: Value<any>, toType: T) => Value<T>;
+  strictConvert: <T extends Type>(value: Value, toType: T) => Value<T>;
   add: <T extends IntType<any>>(
     name: string,
     a: Value<T>,
@@ -60,12 +76,7 @@ export interface Instr {
     a: Value<T>,
     b: Value<T>
   ) => Value<BoolType>;
-  isNull: (value: Pointer<any>) => Value<BoolType>;
-  gepArray: <T extends Type>(
-    name: string,
-    ptr: Pointer<T>,
-    index: Value<IntType<any>>
-  ) => Pointer<T>;
+  isNull: (value: Pointer) => Value<BoolType>;
   // TODO: only primitives (first class, non-aggr)
   load: <T extends Type>(name: string, ptr: Pointer<T>) => Value<T>;
   store: <T extends Type>(ptr: Pointer<T>, value: Value<T>) => void;
@@ -121,7 +132,8 @@ export function instrFactory(
   types: Types
 ): Instr {
   const values: InstrValues = {};
-  const malloc = mallocFactory(builder, module);
+  const sizeof = sizeofFactory(builder, types);
+  const malloc = mallocFactory(builder, module, sizeof);
   const globalStrings = new Globals<llvm.Constant, [string]>((name, value) =>
     builder.CreateGlobalStringPtr(value, name)
   );
@@ -133,13 +145,15 @@ export function instrFactory(
       new Pointer(types.i8, globalStrings.get(`s.${value || "empty"}`, value)),
     alloca: allocaFactory(builder),
     malloc,
+    sizeof,
+    gepStructField: gepStructFactory(builder),
+    gepArray: gepArrayFactory(builder),
     castPtr: castFactory(builder),
     strictConvert: strictConvertFactory(builder, types, malloc),
     add: addFactory(builder),
     sub: subFactory(builder),
     icmpEq: icmpEqFactory(types, builder),
     isNull: isNullFactory(types, builder),
-    gepArray: gepArrayFactory(builder),
     load: loadFactory(builder),
     store: storeFactory(builder),
     loadUnboxed: loadUnboxedFactory(builder),
@@ -177,7 +191,11 @@ function allocaFactory(builder: llvm.IRBuilder) {
   };
 }
 
-function mallocFactory(builder: llvm.IRBuilder, module: llvm.Module) {
+function mallocFactory(
+  builder: llvm.IRBuilder,
+  module: llvm.Module,
+  sizeof: (type: Type) => Value<I64Type>
+) {
   // declare i8* @malloc(i64)
   const functionType = llvm.FunctionType.get(
     builder.getInt8PtrTy(),
@@ -196,7 +214,7 @@ function mallocFactory(builder: llvm.IRBuilder, module: llvm.Module) {
     arraySize?: Value<I64Type> | null
   ) => {
     const pointerType = PointerType.of(type);
-    const size = type.sizeof(builder);
+    const size = sizeof(type);
     const ptr = builder.CreateBitCast(
       builder.CreateCall(
         func,
@@ -207,6 +225,42 @@ function mallocFactory(builder: llvm.IRBuilder, module: llvm.Module) {
       name
     );
     return new Pointer(type, ptr);
+  };
+}
+
+function sizeofFactory(builder: llvm.IRBuilder, types: Types) {
+  const { i64 } = types;
+  return (type: Type): Value<I64Type> => {
+    const arrayType = llvm.PointerType.get(type.llType, 0);
+    const gep = builder.CreateGEP(
+      type.llType,
+      llvm.Constant.getNullValue(arrayType),
+      [builder.getInt32(1)],
+      `${type.typeName}_sizeof_ptr`
+    );
+    const intVal = builder.CreatePtrToInt(
+      gep,
+      i64.llType,
+      `${type.typeName}_sizeof`
+    );
+    return new Value(i64, intVal);
+  };
+}
+
+function gepStructFactory(builder: llvm.IRBuilder): Instr["gepStructField"] {
+  return (ptr, field) => {
+    const structType = ptr.type.toType;
+    const fieldPtr = builder.CreateGEP(
+      structType.llType,
+      ptr.llValue,
+      [
+        builder.getInt32(0),
+        builder.getInt32(structType.fieldNames.indexOf(field)),
+      ],
+      `${structType.typeName}_${field as string}_ptr`
+    );
+    const type = structType.fields[field];
+    return new Pointer(type, fieldPtr);
   };
 }
 
@@ -232,7 +286,7 @@ function strictConvertFactory(
   const cast = castFactory(builder);
   const loadUnboxed = loadUnboxedFactory(builder);
   const storeBoxed = storeBoxedFactory(builder);
-  return <T extends Type>(value: Value<any>, toType: T): Value<T> => {
+  return <T extends Type>(value: Value, toType: T): Value<T> => {
     // Custom JsObjects.
     // TODO: to complicated a formula. Maybe do JsCustObject?
     if (
@@ -253,7 +307,7 @@ function strictConvertFactory(
     // TODO: more canonical parent/child inheritence.
     if (
       toType.isA(types.jsValue.pointerOf()) &&
-      value.type.isPointerTo(JsValueType)
+      value.isPointerTo(JsValueType)
     ) {
       return cast("cast", value, types.jsValue) as unknown as Value<T>;
     }
@@ -273,8 +327,8 @@ function strictConvertFactory(
     // Unbox.
     if (
       !toType.isPointer() &&
-      value.type.isPointerTo(JsValueType) &&
-      value.type.toType.isBoxed() &&
+      value.isPointerTo(JsValueType) &&
+      value.isBoxed() &&
       value.type.toType.unboxedType.isA(toType)
     ) {
       return loadUnboxed(value);
@@ -325,7 +379,7 @@ function icmpEqFactory(types: Types, builder: llvm.IRBuilder) {
 }
 
 function isNullFactory(types: Types, builder: llvm.IRBuilder) {
-  return (value: Pointer<any>) => {
+  return (value: Pointer) => {
     const res = builder.CreateIsNull(value.llValue);
     return new Value(types.bool, res);
   };

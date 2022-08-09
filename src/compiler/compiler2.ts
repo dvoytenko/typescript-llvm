@@ -40,7 +40,7 @@ class Compiler {
 
   private readonly functionsByName: Map<string, TsFunction> = new Map();
   private readonly functions: Map<ts.Node, TsFunction> = new Map();
-  private readonly refs: Map<ts.Node, Value<any>> = new Map();
+  private readonly refs: Map<ts.Node, Value> = new Map();
   private readonly objTypes: Map<string, TsObj> = new Map();
   private readonly ifcs: Map<string, TsIfc> = new Map();
   private sourceFile: ts.SourceFile;
@@ -129,7 +129,7 @@ class Compiler {
     return this.llModule.print();
   }
 
-  private ref(node: ts.Node): Value<any> {
+  private ref(node: ts.Node): Value {
     const value = this.refs.get(node);
     if (!value) {
       throw new Error(
@@ -226,7 +226,7 @@ class Compiler {
     handler(node);
   }
 
-  private genExpr(node: ts.Expression): Value<any> | TsFunction | null {
+  private genExpr(node: ts.Expression): Value | TsFunction | null {
     const handler = this.expressions[node.kind];
     if (!handler) {
       throw new Error(`unknown expression: ${ts.SyntaxKind[node.kind]}`);

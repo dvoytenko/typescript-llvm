@@ -39,24 +39,6 @@ export class Type {
     return this.constructor.name.toLowerCase().replace("type", "");
   }
 
-  // TODO: move to instr
-  sizeof(builder: llvm.IRBuilder): Value<I64Type> {
-    // TODO: resolve types/consts via types/gen?
-    const arrayType = llvm.PointerType.get(this.llType, 0);
-    const gep = builder.CreateGEP(
-      this.llType,
-      llvm.Constant.getNullValue(arrayType),
-      [builder.getInt32(1)],
-      `${this.typeName}_sizeof_ptr`
-    );
-    const intVal = builder.CreatePtrToInt(
-      gep,
-      builder.getInt64Ty(),
-      `${this.typeName}_sizeof`
-    );
-    return new Value(new I64Type(this.context), intVal);
-  }
-
   castFrom(value: Pointer<Type>): Pointer<typeof this> {
     return new Pointer(this, value.llValue);
   }
@@ -72,7 +54,7 @@ export interface BoxedType<BT extends Type> {
   );
 }
 
-export class Value<T extends Type> {
+export class Value<T extends Type = Type> {
   constructor(public type: T, public llValue: llvm.Value) {}
 
   isConst(): this is ConstValue<T> {
@@ -83,12 +65,18 @@ export class Value<T extends Type> {
     return this.type.isA(other);
   }
 
-  isPointer(): this is Pointer<any> {
+  isPointer(): this is Pointer {
     return this.type.isPointer();
   }
 
-  isPointerTo<T extends Type>(type: T | (new () => T)): this is Pointer<T> {
+  isPointerTo<T extends Type>(
+    type: T | (new (...args: any[]) => T)
+  ): this is Pointer<T> {
     return this.type.isPointerTo(type);
+  }
+
+  isBoxed<T extends Type>(): this is Pointer<T & BoxedType<any>> {
+    return this.isPointer() && this.type.toType.isBoxed();
   }
 }
 
@@ -145,7 +133,7 @@ export class PointerType<T extends Type> extends Type {
   }
 }
 
-export class Pointer<T extends Type> extends Value<PointerType<T>> {
+export class Pointer<T extends Type = Type> extends Value<PointerType<T>> {
   constructor(toType: T, ptr: llvm.Value) {
     super(PointerType.of(toType), ptr);
   }

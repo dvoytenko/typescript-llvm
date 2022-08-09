@@ -19,12 +19,12 @@ export interface CompilerContext {
   checker: ts.TypeChecker;
 
   currentFunc(): TsFunction | null;
-  ref(node: ts.Node): Value<any>;
+  ref(node: ts.Node): Value;
 
   declFunction(node: ts.FunctionDeclaration): TsFunction;
   getFunction(name: string): TsFunction | null;
   genStatement(node: ts.Statement);
-  genExpr(node: ts.Expression): Value<any> | TsFunction | null;
+  genExpr(node: ts.Expression): Value | TsFunction | null;
 
   genInBlock(block: llvm.BasicBlock, gen: () => void, finish: () => void);
   terminateBlock();

@@ -7,7 +7,7 @@ import { jsxExprFactories } from "./jsx";
 
 export type ExprHandler<E extends ts.Expression> = (
   st: E
-) => Value<any> | TsFunction | null;
+) => Value | TsFunction | null;
 
 export type ExprHandlers = {
   [K in ts.SyntaxKind]?: ExprHandler<any>;
@@ -67,7 +67,7 @@ function callFactory(context: CompilerContext) {
       const args = func.type.args.map((type, index) => {
         const arg = node.arguments[index];
         const value = arg ? genExpr(arg) : null;
-        if (!(value instanceof Value<any>)) {
+        if (!(value instanceof Value)) {
           throw new Error("cannot use the arg");
         }
         return instr.strictConvert(value, type);
@@ -82,7 +82,7 @@ function callFactory(context: CompilerContext) {
 function consoleLog(context: CompilerContext, node: ts.CallExpression) {
   const { debug, genExpr } = context;
   let fmt = "";
-  const args: Value<any>[] = [];
+  const args: Value[] = [];
   for (const arg of node.arguments) {
     if (fmt.length > 0) {
       fmt += " ";
@@ -150,10 +150,10 @@ function binaryExpressionFactory({ jslib, genExpr }: CompilerContext) {
   return (node: ts.BinaryExpression) => {
     const left = genExpr(node.left);
     const right = genExpr(node.right);
-    if (!(left instanceof Value<any>)) {
+    if (!(left instanceof Value)) {
       throw new Error("cannot use value for binary expression");
     }
-    if (!(right instanceof Value<any>)) {
+    if (!(right instanceof Value)) {
       throw new Error("cannot use value for binary expression");
     }
     const op = node.operatorToken;
@@ -190,7 +190,8 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
 
     // TODO: better name from source.
     const ptr = jslib.jsObject.create(jsType);
-    const custPtr = jsType.gep(instr.builder, ptr, "cust");
+    // const custPtr = jsType.gep(instr.builder, ptr, "cust");
+    const custPtr = instr.gepStructField(ptr, "cust");
     for (const prop of node.properties) {
       // QQQ: support shorthand properties as well.
       const propAssignment = prop as ts.PropertyAssignment;
@@ -205,7 +206,7 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
         );
       }
       const propValue = genExpr(propAssignment.initializer);
-      if (!(propValue instanceof Value<any>)) {
+      if (!(propValue instanceof Value)) {
         throw new Error("cannot use value for object expression");
       }
 
@@ -235,7 +236,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
   const { builder } = instr;
   return (node: ts.PropertyAccessExpression) => {
     const target = genExpr(node.expression);
-    if (!(target instanceof Value<any>)) {
+    if (!(target instanceof Value) || !target.isPointer()) {
       throw new Error("cannot use value for object access expression");
     }
 
@@ -248,7 +249,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
         node,
         context
       );
-      let value: Value<any> | null = null;
+      let value: Value | null = null;
       if (symbol.declarations && symbol.declarations.length > 0) {
         if (symbol.declarations.length === 1) {
           const decl = symbol.declarations[0]!;
@@ -272,8 +273,13 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
 
             const autoId = types.vtable.fields.itable.load(
               builder,
-              types.vtable.gep(
-                builder,
+              // QQQQ
+              // types.vtable.gep(
+              //   builder,
+              //   jsObject.load(builder, targetPtr, "vtable"),
+              //   "itable"
+              // ),
+              instr.gepStructField(
                 jsObject.load(builder, targetPtr, "vtable"),
                 "itable"
               ),
@@ -299,11 +305,13 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
               targetPtr,
               jslib.values.jsEmptyObject
             );
-            const custPtr = jslib.values.jsEmptyObject.gep(
-              builder,
-              objPtr,
-              "cust"
-            );
+            // QQQQQ
+            // const custPtr = jslib.values.jsEmptyObject.gep(
+            //   builder,
+            //   objPtr,
+            //   "cust"
+            // );
+            const custPtr = instr.gepStructField(objPtr, "cust");
             const ifcPtr = instr.castPtr("ifc_ptr", custPtr, ifc.shapeType);
             const autoVal = ifc.shapeType.load(builder, ifcPtr, propName);
             instr.store(retval, autoVal);
@@ -337,7 +345,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
               targetPtr.llValue,
               i64.llType
             );
-            const jsObjectSize = jsObject.sizeof(builder);
+            const jsObjectSize = instr.sizeof(jsObject);
             const offset64 = builder.CreateIntCast(
               offset.llValue,
               i64.llType,

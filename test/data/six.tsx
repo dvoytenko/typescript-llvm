@@ -18,9 +18,9 @@ export function render(v: number) {
 //   return <hr/>
 // }
 
-// export function cycle(value: number) {
-//   return render(value);
-// }
+export function cycle(value: number) {
+  return render(value);
+}
 
 export function main() {
   console.log('render(17):', render(17));
