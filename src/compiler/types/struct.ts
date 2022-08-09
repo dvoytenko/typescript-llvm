@@ -44,7 +44,7 @@ export class StructType<Fields extends StructFields> extends Type {
     return new Value(this, struct);
   }
 
-  // QQQQ: remove?
+  // QQQ: remove?
   private gep<F extends keyof Fields>(
     builder: llvm.IRBuilder,
     ptr: Pointer<typeof this>,

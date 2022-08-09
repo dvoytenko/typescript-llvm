@@ -103,8 +103,6 @@ function jsxAttributesFactory(context: CompilerContext) {
 
     const jsType = tsObj.type;
     const ptr = jslib.jsObject.create(jsType);
-    // QQQQ
-    // const custPtr = jsType.gep(instr.builder, ptr, "cust");
     const custPtr = instr.gepStructField(ptr, "cust");
     for (const [propName, propValue] of Object.entries(values)) {
       const propValueType = shape[propName];

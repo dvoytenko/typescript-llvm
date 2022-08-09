@@ -13,14 +13,14 @@ import { Value } from "./types/base";
 import { StructFields, StructType } from "./types/struct";
 
 export function compile(file: string): string {
-  console.log("COMPILE: ", file);
+  // console.log("COMPILE: ", file);
 
   const compiler = new Compiler([file]);
   const ir = compiler.compile();
 
-  console.log("");
-  console.log("IR:");
-  console.log(ir);
+  // console.log("");
+  // console.log("IR:");
+  // console.log(ir);
   return ir;
 }
 
@@ -178,8 +178,6 @@ class Compiler {
     if (this.functions.has(node)) {
       return this.functions.get(node)!;
     }
-
-    console.log("QQQ: declFunction: ", node.name?.text);
 
     const func = declFunction(node, this.compilerContext);
 

@@ -5,7 +5,7 @@ import { exec } from 'child_process';
 import { compile } from '../src/compiler';
 import { compile as compile2} from '../src/compiler/compiler2';
 
-const TEST = 'five';
+const TEST = null;
 const CYCLER = false;
 
 console.log('Any specific test specified? ', process.argv[2]);
@@ -24,9 +24,9 @@ async function run(dir: string) {
     const stat = await fsPromises.stat(file);
     if (stat.isDirectory()) {
       await run(file);
-    } else if ((file.endsWith('.ts') || file.endsWith('.tsx'))
-        && !file.endsWith('.d.ts')
-        && !file.startsWith('lib-')) {
+    } else if ((fileName.endsWith('.ts') || fileName.endsWith('.tsx'))
+        && !fileName.endsWith('.d.ts')
+        && !fileName.startsWith('lib-')) {
       await test(path.relative(DATA_DIR, file));
     }
   }
@@ -34,12 +34,12 @@ async function run(dir: string) {
 
 async function test(file: string): Promise<void> {
   console.log('TS(X) FILE: ', file);
-  if (!file.includes(TEST)) {
+  if (TEST != null && !file.includes(TEST)) {
     return;
   }
 
   const workDir = path.dirname(path.resolve(WORK_DIR, file));
-  console.log('WORK DIR: ', workDir);
+  // console.log('WORK DIR: ', workDir);
   const workDirStats = await fsPromises.stat(workDir);
   if (!workDirStats.isDirectory()) {
     await fsPromises.mkdir(workDir, {recursive: true});
@@ -173,7 +173,7 @@ function execLl(file: string): Promise<string> {
 function execLlLink(outFile: string, files: string[]): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const cmd = `llvm-link -S -o ${outFile} ${files.join(' ')}`;
-    console.log('LINK CMD: ', cmd);
+    // console.log('LINK CMD: ', cmd);
     exec(cmd, (error, stdout, stderr) => {
       if (error) {
         console.log(stdout);
@@ -191,7 +191,7 @@ function execLlLink(outFile: string, files: string[]): Promise<string> {
 function execLlOpt(inFile: string, outFile: string, opts: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const cmd = `opt ${opts} -S -o ${outFile} ${inFile}`;
-    console.log('OPT CMD: ', cmd);
+    // console.log('OPT CMD: ', cmd);
     exec(cmd, (error, stdout, stderr) => {
       if (error) {
         console.log(stdout);

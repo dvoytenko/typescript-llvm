@@ -9,6 +9,11 @@ export class Type {
   ) {}
 
   isA<T extends Type>(other: T): this is T {
+    return this.constructor === other.constructor;
+  }
+
+  // TODO: consider name: isAssignableTo()
+  isInheritedFrom<T extends Type>(other: T): this is T {
     return this instanceof other.constructor;
   }
 
@@ -22,8 +27,17 @@ export class Type {
     return false;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  isPointerTo<T extends Type>(type: T | (new () => T)): this is PointerType<T> {
+  isPointerTo<T extends Type>(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    type: T | (new (...args: any[]) => T)
+  ): this is PointerType<T> {
+    return false;
+  }
+
+  isPointerToInherited<T extends Type>(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    type: T | (new (...args: any[]) => T)
+  ): this is PointerType<T> {
     return false;
   }
 
@@ -65,6 +79,10 @@ export class Value<T extends Type = Type> {
     return this.type.isA(other);
   }
 
+  isInheritedFrom<T extends Type>(other: T): this is Value<T> {
+    return this.type.isInheritedFrom(other);
+  }
+
   isPointer(): this is Pointer {
     return this.type.isPointer();
   }
@@ -75,12 +93,18 @@ export class Value<T extends Type = Type> {
     return this.type.isPointerTo(type);
   }
 
+  isPointerToInherited<T extends Type>(
+    type: T | (new (...args: any[]) => T)
+  ): this is Pointer<T> {
+    return this.type.isPointerToInherited(type);
+  }
+
   isBoxed<T extends Type>(): this is Pointer<T & BoxedType<any>> {
     return this.isPointer() && this.type.toType.isBoxed();
   }
 }
 
-export class ConstValue<T extends Type> extends Value<T> {
+export class ConstValue<T extends Type = Type> extends Value<T> {
   constructor(type: T, public llValue: llvm.Constant) {
     super(type, llValue);
   }
@@ -111,6 +135,15 @@ export class PointerType<T extends Type> extends Type {
     return this.toType.isA((other as unknown as PointerType<any>).toType);
   }
 
+  override isInheritedFrom<T extends Type>(other: T): this is T {
+    if (!super.isInheritedFrom(other)) {
+      return false;
+    }
+    return this.toType.isInheritedFrom(
+      (other as unknown as PointerType<any>).toType
+    );
+  }
+
   override isPointer(): boolean {
     return true;
   }
@@ -119,9 +152,18 @@ export class PointerType<T extends Type> extends Type {
     type: T | (new () => T)
   ): this is PointerType<T> {
     if (typeof type === "function") {
-      return this.toType instanceof type;
+      return this.toType.constructor === type;
     }
     return this.toType.isA(type);
+  }
+
+  override isPointerToInherited<T extends Type>(
+    type: T | (new (...args: any[]) => T)
+  ): this is PointerType<T> {
+    if (typeof type === "function") {
+      return this.toType instanceof type;
+    }
+    return this.toType.isInheritedFrom(type);
   }
 
   create(ptr: llvm.Value): Pointer<T> {

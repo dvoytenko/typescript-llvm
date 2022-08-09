@@ -63,8 +63,6 @@ function computeFields(
       : gType.isA(i32)
       ? JsType.NUMBER
       : JsType.UNKNOWN;
-    // QQQQ
-    // const fieldPtr = shapeType.gep(builder, nullptr, fieldName);
     const fieldPtr = instr.gepStructField(nullptr, fieldName);
     const offset = builder.CreatePtrToInt(
       fieldPtr.llValue,
@@ -134,8 +132,6 @@ function computeIfc(
 
     let offset: llvm.Constant;
     if (fieldName in shape) {
-      // QQQQ
-      // const fieldPtr = shapeType.gep(builder, nullptr, fieldName);
       const fieldPtr = instr.gepStructField(nullptr, fieldName);
       offset = builder.CreatePtrToInt(
         fieldPtr.llValue,

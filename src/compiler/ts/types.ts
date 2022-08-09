@@ -20,7 +20,7 @@ export function tsToGType(
   tsType: ts.Type,
   node: ts.Node,
   context: CompilerContext
-): PointerType<JsValueType<any, any>> {
+): PointerType<JsValueType> {
   const { types } = context;
   logType(tsType, context);
 
@@ -181,70 +181,70 @@ export function tsToStructFields(
   return shape;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function logType(tsType: ts.Type, { checker }: CompilerContext) {
-  console.log("QQQ: TYPE FLAGS: ", {
-    flags: tsType.getFlags(),
-    symbol: tsType.getSymbol()
-      ? checker.symbolToString(tsType.getSymbol()!)
-      : null,
-    // toString, toFixed, ...
-    properties: tsType
-      .getProperties()
-      .map((prop) => checker.symbolToString(prop)),
-    // toString, toFixed, ...
-    apparentProperties: tsType
-      .getApparentProperties()
-      .map((prop) => checker.symbolToString(prop)),
-    // []
-    callSignatures: tsType
-      .getCallSignatures()
-      .map((sig) => checker.signatureToString(sig)),
-    // []
-    constructSignatures: tsType
-      .getConstructSignatures()
-      .map((sig) => checker.signatureToString(sig)),
-    // null
-    stringIndexType: tsType.getStringIndexType()
-      ? checker.typeToString(tsType.getStringIndexType()!)
-      : null,
-    // null
-    numberIndexType: tsType.getNumberIndexType()
-      ? checker.typeToString(tsType.getNumberIndexType()!)
-      : null,
-    // null
-    baseTypes: tsType.getBaseTypes()
-      ? tsType.getBaseTypes()!.map((t) => checker.typeToString(t))
-      : null,
-    // number
-    nonNullableType: checker.typeToString(tsType.getNonNullableType()),
-    // null
-    constraint: tsType.getConstraint()
-      ? checker.typeToString(tsType.getConstraint()!)
-      : null,
-    // null
-    def: tsType.getDefault()
-      ? checker.typeToString(tsType.getDefault()!)
-      : null,
-
-    // false
-    isUnion: tsType.isUnion(),
-    // false
-    isIntersection: tsType.isIntersection(),
-    // false
-    isUnionOrIntersection: tsType.isUnionOrIntersection(),
-    // false
-    isLiteral: tsType.isLiteral(),
-    // false
-    isStringLiteral: tsType.isStringLiteral(),
-    // false
-    isNumberLiteral: tsType.isNumberLiteral(),
-    // false
-    isTypeParameter: tsType.isTypeParameter(),
-    // false
-    isClassOrInterface: tsType.isClassOrInterface(),
-    // false
-    isClass: tsType.isClass(),
-    // false
-    isIndexType: tsType.isIndexType(),
-  });
+  // console.log("QQQ: TYPE FLAGS: ", {
+  //   flags: tsType.getFlags(),
+  //   symbol: tsType.getSymbol()
+  //     ? checker.symbolToString(tsType.getSymbol()!)
+  //     : null,
+  //   // toString, toFixed, ...
+  //   properties: tsType
+  //     .getProperties()
+  //     .map((prop) => checker.symbolToString(prop)),
+  //   // toString, toFixed, ...
+  //   apparentProperties: tsType
+  //     .getApparentProperties()
+  //     .map((prop) => checker.symbolToString(prop)),
+  //   // []
+  //   callSignatures: tsType
+  //     .getCallSignatures()
+  //     .map((sig) => checker.signatureToString(sig)),
+  //   // []
+  //   constructSignatures: tsType
+  //     .getConstructSignatures()
+  //     .map((sig) => checker.signatureToString(sig)),
+  //   // null
+  //   stringIndexType: tsType.getStringIndexType()
+  //     ? checker.typeToString(tsType.getStringIndexType()!)
+  //     : null,
+  //   // null
+  //   numberIndexType: tsType.getNumberIndexType()
+  //     ? checker.typeToString(tsType.getNumberIndexType()!)
+  //     : null,
+  //   // null
+  //   baseTypes: tsType.getBaseTypes()
+  //     ? tsType.getBaseTypes()!.map((t) => checker.typeToString(t))
+  //     : null,
+  //   // number
+  //   nonNullableType: checker.typeToString(tsType.getNonNullableType()),
+  //   // null
+  //   constraint: tsType.getConstraint()
+  //     ? checker.typeToString(tsType.getConstraint()!)
+  //     : null,
+  //   // null
+  //   def: tsType.getDefault()
+  //     ? checker.typeToString(tsType.getDefault()!)
+  //     : null,
+  //   // false
+  //   isUnion: tsType.isUnion(),
+  //   // false
+  //   isIntersection: tsType.isIntersection(),
+  //   // false
+  //   isUnionOrIntersection: tsType.isUnionOrIntersection(),
+  //   // false
+  //   isLiteral: tsType.isLiteral(),
+  //   // false
+  //   isStringLiteral: tsType.isStringLiteral(),
+  //   // false
+  //   isNumberLiteral: tsType.isNumberLiteral(),
+  //   // false
+  //   isTypeParameter: tsType.isTypeParameter(),
+  //   // false
+  //   isClassOrInterface: tsType.isClassOrInterface(),
+  //   // false
+  //   isClass: tsType.isClass(),
+  //   // false
+  //   isIndexType: tsType.isIndexType(),
+  // });
 }

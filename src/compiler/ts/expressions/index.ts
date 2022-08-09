@@ -177,16 +177,11 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
   const { types, instr, jslib, checker, genExpr, declObjType } = context;
   return (node: ts.ObjectLiteralExpression) => {
     const tsType = checker.getTypeAtLocation(node);
-    console.log("QQQ: obj type: ", checker.typeToString(tsType));
     const tsObj = declObjType(
       checker.typeToString(tsType),
       tsToStructFields(tsType, node, context)
     );
-    // const jsType = (
-    //   tsToGType(tsType, node, context) as PointerType<JsCustObject>
-    // ).toType;
     const jsType = tsObj.type;
-    console.log("QQQ: obj gtype: ", jsType);
 
     // TODO: better name from source.
     const ptr = jslib.jsObject.create(jsType);
@@ -273,12 +268,6 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
 
             const autoId = types.vtable.fields.itable.load(
               builder,
-              // QQQQ
-              // types.vtable.gep(
-              //   builder,
-              //   jsObject.load(builder, targetPtr, "vtable"),
-              //   "itable"
-              // ),
               instr.gepStructField(
                 jsObject.load(builder, targetPtr, "vtable"),
                 "itable"
@@ -305,12 +294,6 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
               targetPtr,
               jslib.values.jsEmptyObject
             );
-            // QQQQQ
-            // const custPtr = jslib.values.jsEmptyObject.gep(
-            //   builder,
-            //   objPtr,
-            //   "cust"
-            // );
             const custPtr = instr.gepStructField(objPtr, "cust");
             const ifcPtr = instr.castPtr("ifc_ptr", custPtr, ifc.shapeType);
             const autoVal = ifc.shapeType.load(builder, ifcPtr, propName);

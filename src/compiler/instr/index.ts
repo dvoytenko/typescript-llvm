@@ -2,6 +2,7 @@ import llvm from "llvm-bindings";
 import { Types } from "../types";
 import {
   BoxedType,
+  ConstValue,
   I32Type,
   I64Type,
   I8Type,
@@ -40,8 +41,7 @@ export interface Instr {
     type: T,
     arraySize?: Value<I64Type> | null
   ) => Pointer<T>;
-  // QQQ: make it return a const.
-  sizeof: (type: Type) => Value<I64Type>;
+  sizeof: (type: Type) => ConstValue<I64Type>;
   gepStructField: <
     T extends StructType<any>,
     F extends T extends StructType<infer F1> ? F1 : never,
@@ -194,7 +194,7 @@ function allocaFactory(builder: llvm.IRBuilder) {
 function mallocFactory(
   builder: llvm.IRBuilder,
   module: llvm.Module,
-  sizeof: (type: Type) => Value<I64Type>
+  sizeof: Instr["sizeof"]
 ) {
   // declare i8* @malloc(i64)
   const functionType = llvm.FunctionType.get(
@@ -230,7 +230,7 @@ function mallocFactory(
 
 function sizeofFactory(builder: llvm.IRBuilder, types: Types) {
   const { i64 } = types;
-  return (type: Type): Value<I64Type> => {
+  return (type: Type): ConstValue<I64Type> => {
     const arrayType = llvm.PointerType.get(type.llType, 0);
     const gep = builder.CreateGEP(
       type.llType,
@@ -243,7 +243,7 @@ function sizeofFactory(builder: llvm.IRBuilder, types: Types) {
       i64.llType,
       `${type.typeName}_sizeof`
     );
-    return new Value(i64, intVal);
+    return new ConstValue(i64, intVal as llvm.Constant);
   };
 }
 
@@ -287,27 +287,27 @@ function strictConvertFactory(
   const loadUnboxed = loadUnboxedFactory(builder);
   const storeBoxed = storeBoxedFactory(builder);
   return <T extends Type>(value: Value, toType: T): Value<T> => {
-    // Custom JsObjects.
-    // TODO: to complicated a formula. Maybe do JsCustObject?
-    if (
-      toType.isPointerTo(types.jsObject) &&
-      value.isPointerTo(types.jsObject) &&
-      value.isA(toType) &&
-      value.type.typeName !== toType.typeName
-    ) {
-      return cast("cast", value, toType.toType) as unknown as Value<T>;
-    }
-
     // Already the right type.
     if (value.isA(toType)) {
       return value;
     }
 
+    // Custom JsObjects.
+    // TODO: to complicated a formula. Maybe do JsCustObject?
+    if (
+      toType.isPointerTo(types.jsObject) &&
+      value.isPointerToInherited(types.jsObject) &&
+      value.isInheritedFrom(toType) &&
+      value.type.typeName !== toType.typeName
+    ) {
+      return cast("cast", value, toType.toType) as unknown as Value<T>;
+    }
+
     // Widen to parent type.
     // TODO: more canonical parent/child inheritence.
     if (
-      toType.isA(types.jsValue.pointerOf()) &&
-      value.isPointerTo(JsValueType)
+      toType.isPointerTo(types.jsValue) &&
+      value.isPointerToInherited(JsValueType)
     ) {
       return cast("cast", value, types.jsValue) as unknown as Value<T>;
     }
@@ -317,10 +317,9 @@ function strictConvertFactory(
       value.isPointerTo(types.jsValue) &&
       !toType.isPointerTo(types.jsValue) &&
       toType.isPointer() &&
-      // QQQ: fix typing
-      (toType as any).isPointerTo(JsValueType)
+      toType.isPointerTo(JsValueType)
     ) {
-      // QQQ: check that typing is compatible via IR (jsType === 8 or throw).
+      // TODO: check that typing is compatible via IR (jsType === 8 or throw).
       return cast("jsv_to_obj", value, toType.toType) as unknown as Value<T>;
     }
 
@@ -486,7 +485,7 @@ function condBrFactory(builder: llvm.IRBuilder) {
 }
 
 interface SwitchCase<T extends IntType<any>> {
-  on: Value<T>;
+  on: ConstValue<T>;
   block: llvm.BasicBlock;
 }
 
@@ -499,12 +498,9 @@ function switchBrFactory(builder: llvm.IRBuilder) {
     defBlock: llvm.BasicBlock,
     cases: SwitchCase<T>[]
   ) => {
-    // public CreateSwitch(value: Value, dest: BasicBlock, numCases?: number): SwitchInst;
     const st = builder.CreateSwitch(cond.llValue, defBlock, cases.length);
-    // public addCase(onVal: ConstantInt, dest: BasicBlock): void;
     for (const c of cases) {
-      // QQQ: remove cast to ConstantInt
-      st.addCase(c.on.llValue as llvm.ConstantInt, c.block);
+      st.addCase(c.on.llValue, c.block);
     }
   };
 }

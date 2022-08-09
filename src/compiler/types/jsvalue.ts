@@ -29,8 +29,8 @@ interface JsTypeFields extends StructFields {
 }
 
 export class JsValueType<
-  JST extends JsType,
-  Fields extends StructFields
+  JST extends JsType = any,
+  Fields extends StructFields = {}
 > extends StructType<JsTypeFields & Fields> {
   constructor(
     context: llvm.LLVMContext,
@@ -44,7 +44,7 @@ export class JsValueType<
     });
   }
 
-  castFrom(value: Pointer<JsValueType<any, any>>): Pointer<typeof this> {
+  castFrom(value: Pointer<JsValueType>): Pointer<typeof this> {
     const valueJsType = value.type.toType.jsType;
     if (
       valueJsType !== JsType.UNKNOWN &&

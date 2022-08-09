@@ -13,14 +13,14 @@ interface MapFields extends StructFields {
 
 interface EntryFields extends StructFields {
   key: PointerType<JsString>;
-  value: PointerType<JsValueType<any, any>>;
+  value: PointerType<JsValueType>;
 }
 
 export class JsvMap extends StructType<MapFields> {
   constructor(
     context: llvm.LLVMContext,
     jsString: JsString,
-    jsValue: JsValueType<any, any>
+    jsValue: JsValueType
   ) {
     super(context, "struct.JsvMap", {
       length: new I32Type(context),
@@ -46,7 +46,7 @@ class EntryType extends StructType<EntryFields> {
   constructor(
     context: llvm.LLVMContext,
     jsString: JsString,
-    jsValue: JsValueType<any, any>
+    jsValue: JsValueType
   ) {
     super(context, "struct.JsvMapEntry", {
       key: jsString.pointerOf(),

@@ -5,11 +5,11 @@ import { StructFields } from "./struct";
 
 export interface JsArrayFields extends StructFields {
   length: I32Type;
-  arr: PointerType<PointerType<JsValueType<any, any>>>;
+  arr: PointerType<PointerType<JsValueType>>;
 }
 
 export class JsArray extends JsValueType<JsType.ARRAY, JsArrayFields> {
-  constructor(context: llvm.LLVMContext, jsValue: JsValueType<any, any>) {
+  constructor(context: llvm.LLVMContext, jsValue: JsValueType) {
     super(
       context,
       JsType.ARRAY,

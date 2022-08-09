@@ -71,12 +71,12 @@ interface JsObjectLib {
   create(jsType: JsCustObject): Pointer<JsCustObject>;
   getField(
     ptr: Pointer<JsObject>,
-    key: Pointer<JsValueType<any, any>>
-  ): Pointer<JsValueType<any, any>>;
+    key: Pointer<JsValueType>
+  ): Pointer<JsValueType>;
   setField(
     ptr: Pointer<JsObject>,
-    key: Pointer<JsValueType<any, any>>,
-    value: Pointer<JsValueType<any, any>>
+    key: Pointer<JsValueType>,
+    value: Pointer<JsValueType>
   ): void;
   getIfc(ptr: Pointer<JsObject>, id: Value<I32Type>): Pointer<VTableIfcField>;
 }
@@ -355,7 +355,7 @@ function jsObjectFactory(
   const jsValuePtr = jsValue.pointerOf();
   const vtablePtr = vtable.pointerOf();
 
-  const keyToString = (key: Pointer<JsValueType<any, any>>) =>
+  const keyToString = (key: Pointer<JsValueType>) =>
     instr.strictConvert(key, types.jsString.pointerOf());
 
   const jsObject_init = instr.func(
@@ -370,11 +370,7 @@ function jsObjectFactory(
   );
   const jsObject_setField = instr.func<
     VoidType,
-    [
-      PointerType<JsObject>,
-      PointerType<JsString>,
-      PointerType<JsValueType<any, any>>
-    ]
+    [PointerType<JsObject>, PointerType<JsString>, PointerType<JsValueType>]
   >(
     "jsObject_setField",
     types.func(voidType, [jsObjectPtr, jsStringPtr, jsValuePtr])
@@ -396,7 +392,7 @@ function jsObjectFactory(
       // QQQQ: zeroinitializer for cust?
       return ptr;
     },
-    getField(ptr: Pointer<JsObject>, key: Pointer<JsValueType<any, any>>) {
+    getField(ptr: Pointer<JsObject>, key: Pointer<JsValueType>) {
       const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
       return instr.call("get_field", jsObject_getField, [
         ptr0,
@@ -405,8 +401,8 @@ function jsObjectFactory(
     },
     setField(
       ptr: Pointer<JsObject>,
-      key: Pointer<JsValueType<any, any>>,
-      value: Pointer<JsValueType<any, any>>
+      key: Pointer<JsValueType>,
+      value: Pointer<JsValueType>
     ) {
       const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
       instr.callVoid(jsObject_setField, [ptr0, keyToString(key), value]);

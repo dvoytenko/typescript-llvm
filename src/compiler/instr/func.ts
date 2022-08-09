@@ -33,7 +33,7 @@ export class Function<Ret extends Type, Args extends [...Type[]]> {
       console.log(`${"\x1b[31m"}${this.name}: FAILED${"\x1b[0m"}`);
       //   throw new Error(`Verifying function failed: ${funcName}`);
     } else {
-      console.log(`${"\x1b[34m"}${this.name}: SUCCESS${"\x1b[0m"}`);
+      // console.log(`${"\x1b[34m"}${this.name}: SUCCESS${"\x1b[0m"}`);
     }
   }
 }
