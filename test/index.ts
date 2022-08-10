@@ -1,38 +1,43 @@
-
-import * as path from 'path';
-import {promises as fsPromises} from 'fs';
-import { exec } from 'child_process';
-import { compile } from '../src/compiler/compiler';
+import * as path from "path";
+import { promises as fsPromises } from "fs";
+import { exec } from "child_process";
+import { compile } from "../src/compiler/compiler";
+import { execFile } from "./wasmer";
+import { buildCycler } from "./llcycler";
 
 const TEST = null;
+const WASM = true;
+const WASM_EXEC = true;
 const CYCLER = false;
 
-console.log('Any specific test specified? ', process.argv[2]);
+console.log("Any specific test specified? ", process.argv[2]);
 
 const WORK_DIR = __dirname;
-const DATA_DIR = path.resolve(WORK_DIR, '..', '..', 'test', 'data');
+const DATA_DIR = path.resolve(WORK_DIR, "..", "..", "test", "data");
 console.log(WORK_DIR);
 console.log(DATA_DIR);
 
 async function run(dir: string) {
   const files = await fsPromises.readdir(dir);
-  console.log('DIR: ', dir);
-  console.log('FILES: ', files);
+  console.log("DIR: ", dir);
+  console.log("FILES: ", files);
   for (const fileName of files) {
     const file = path.resolve(dir, fileName);
     const stat = await fsPromises.stat(file);
     if (stat.isDirectory()) {
       await run(file);
-    } else if ((fileName.endsWith('.ts') || fileName.endsWith('.tsx'))
-        && !fileName.endsWith('.d.ts')
-        && !fileName.startsWith('lib-')) {
+    } else if (
+      (fileName.endsWith(".ts") || fileName.endsWith(".tsx")) &&
+      !fileName.endsWith(".d.ts") &&
+      !fileName.startsWith("lib-")
+    ) {
       await test(path.relative(DATA_DIR, file));
     }
   }
 }
 
 async function test(file: string): Promise<void> {
-  console.log('TS(X) FILE: ', file);
+  console.log("TS(X) FILE: ", file);
   if (TEST != null && !file.includes(TEST)) {
     return;
   }
@@ -41,28 +46,42 @@ async function test(file: string): Promise<void> {
   // console.log('WORK DIR: ', workDir);
   const workDirStats = await fsPromises.stat(workDir);
   if (!workDirStats.isDirectory()) {
-    await fsPromises.mkdir(workDir, {recursive: true});
+    await fsPromises.mkdir(workDir, { recursive: true });
   }
 
   const sourceFile = path.resolve(DATA_DIR, file);
 
   const ll = compile(sourceFile);
 
-  const llFile = path.resolve(workDir, file.replace('.tsx', '.ll').replace('.ts', '.ll'));
+  const llFile = path.resolve(
+    workDir,
+    file.replace(".tsx", ".ll").replace(".ts", ".ll")
+  );
   await fsPromises.writeFile(llFile, ll);
 
-  const llLinkedFile = path.resolve(workDir, llFile.replace('.ll', '-linked.ll'));
-  const llInfraFile = path.resolve(WORK_DIR, '..', 'infra', 'infra.ll');
-  await execLlLink(llLinkedFile, [llFile, llInfraFile]);
+  const llLinkedFile = path.resolve(
+    workDir,
+    llFile.replace(".ll", "-linked.ll")
+  );
+  const llInfraFile = path.resolve(WORK_DIR, "..", "infra", "infra.ll");
+  await llLink(llLinkedFile, [llFile, llInfraFile]);
 
   if (CYCLER) {
     runCycler(workDir, llLinkedFile);
   } else {
     const result = await execLl(llLinkedFile);
-    console.log(`${'\x1b[34m'}RESULT:\n${result}`, '\x1b[0m');
+    console.log(`${"\x1b[34m"}RESULT:\n${result}`, "\x1b[0m");
 
-    const llOptFile = path.resolve(workDir, llFile.replace('.ll', '.Oz.ll'));
-    await execLlOpt(llFile, llOptFile, '-Oz');
+    const llOptFile = path.resolve(workDir, llFile.replace(".ll", ".Oz.ll"));
+    await llOpt(llFile, llOptFile, "-Oz");
+
+    if (WASM) {
+      await buildWasm(llFile);
+      if (WASM_EXEC) {
+        const wasmLinkedFile = await buildWasm(llLinkedFile);
+        await execWasm(wasmLinkedFile);
+      }
+    }
   }
 
   /* QQQ
@@ -82,102 +101,75 @@ async function runCycler(workDir: string, file: string) {
 
   const orig = await fsPromises.readFile(file);
 
-  const cyclerFile = path.resolve(workDir, file.replace('.ll', '.cycler.ll'));
+  const cyclerFile = path.resolve(workDir, file.replace(".ll", ".cycler.ll"));
 
-  // TODO: redo via linker. pass number of cycles as an arg.
-  await fsPromises.writeFile(cyclerFile,
-    `${orig.toString()}
+  await fsPromises.writeFile(
+    cyclerFile,
+    buildCycler(numberOfCycles, orig.toString())
+  );
 
-%struct.timeval = type { i64, i32 }
-@.str_cycle_millis = private unnamed_addr constant [24 x i8] c"Total time = %f millis\\0A\\00", align 1
-declare i32 @gettimeofday(%struct.timeval*, i8*) noinline nounwind optnone
-declare i32 @printf(i8*, ...)
-
-define i32 @main() {
-  %1 = alloca i32, align 4
-  %2 = alloca %struct.timeval, align 8
-  %3 = alloca %struct.timeval, align 8
-  %4 = alloca i32, align 4
-  %5 = alloca double, align 8
-  store i32 0, i32* %1, align 4
-  %6 = call i32 @gettimeofday(%struct.timeval* %2, i8* null)
-  store i32 0, i32* %4, align 4
-  br label %7
-
-7:                                                ; preds = %13, %0
-  %8 = load i32, i32* %4, align 4
-  %9 = icmp slt i32 %8, ${numberOfCycles}
-  br i1 %9, label %10, label %16
-
-10:                                               ; preds = %7
-  %11 = load i32, i32* %4, align 4
-  %12 = call %struct.JsValue* @"u/cycle"(i32 %11)
-  br label %13
-
-13:                                               ; preds = %10
-  %14 = load i32, i32* %4, align 4
-  %15 = add nsw i32 %14, 1
-  store i32 %15, i32* %4, align 4
-  br label %7
-
-16:                                               ; preds = %7
-  %17 = call i32 @gettimeofday(%struct.timeval* %3, i8* null)
-  %18 = getelementptr inbounds %struct.timeval, %struct.timeval* %3, i32 0, i32 1
-  %19 = load i32, i32* %18, align 8
-  %20 = getelementptr inbounds %struct.timeval, %struct.timeval* %2, i32 0, i32 1
-  %21 = load i32, i32* %20, align 8
-  %22 = sub nsw i32 %19, %21
-  %23 = sitofp i32 %22 to double
-  %24 = fdiv double %23, 1.000000e+03
-  %25 = getelementptr inbounds %struct.timeval, %struct.timeval* %3, i32 0, i32 0
-  %26 = load i64, i64* %25, align 8
-  %27 = getelementptr inbounds %struct.timeval, %struct.timeval* %2, i32 0, i32 0
-  %28 = load i64, i64* %27, align 8
-  %29 = sub nsw i64 %26, %28
-  %30 = sitofp i64 %29 to double
-  %31 = fmul double %30, 1.000000e+03
-  %32 = fadd double %24, %31
-  store double %32, double* %5, align 8
-  %33 = load double, double* %5, align 8
-  %34 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([24 x i8], [24 x i8]* @.str_cycle_millis, i64 0, i64 0), double %33)
-  ret i32 0
-}
-    `);
-
-  const optFile = path.resolve(workDir, cyclerFile.replace('.ll', '.Oz.ll'));
-  await execLlOpt(cyclerFile, optFile, '-Oz');
+  const optFile = path.resolve(workDir, cyclerFile.replace(".ll", ".Oz.ll"));
+  await llOpt(cyclerFile, optFile, "-Oz");
 
   const result = await execLl(optFile);
-  console.log(`${'\x1b[34m'}RESULT:\n${result}`, '\x1b[0m');
+  console.log(`${"\x1b[34m"}RESULT:\n${result}`, "\x1b[0m");
 }
 
 function execLl(file: string): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    exec('lli ' + file, (error, stdout, stderr) => {
-      if (error) {
-        console.log(stdout);
-        reject(new Error(`error: ${error.message}`));
-      } else if (stderr) {
-        console.log(stdout);
-        reject(new Error(`stderr: ${stderr}`));
-      } else {
-        resolve(stdout);
-      }
-    });
-  });
+  const cmd = "lli " + file;
+  return execCmd(cmd);
 }
 
-function execLlLink(outFile: string, files: string[]): Promise<string> {
+function llLink(outFile: string, files: string[]): Promise<string> {
+  const cmd = `llvm-link -S -o ${outFile} ${files.join(" ")}`;
+  return execCmd(cmd);
+}
+
+function llOpt(inFile: string, outFile: string, opts: string): Promise<string> {
+  const cmd = `opt ${opts} -S -o ${outFile} ${inFile}`;
+  return execCmd(cmd);
+}
+
+async function buildWasm(llFile: string, opts?: string): Promise<string> {
+  // 1. Object file:
+  const objFile = llFile.replace(".ll", ".o");
+  await execCmd(
+    `llc -mtriple=wasm32-unknown-unknown ${
+      opts ?? ""
+    } -filetype=obj ${llFile} -o ${objFile}`,
+    true
+  );
+
+  // 2. WASM file:
+  const wasmFile = llFile.replace(".ll", ".wasm");
+  await execCmd(
+    `wasm-ld ${objFile} -o ${wasmFile} -allow-undefined --entry "main" --import-memory`
+  );
+
+  // 3. WAT file:
+  const watFile = llFile.replace(".ll", ".wat");
+  await execCmd(`wasm2wat ${wasmFile} -o ${watFile}`);
+
+  return wasmFile;
+}
+
+async function execWasm(wasmFile: string): Promise<void> {
+  await execFile(wasmFile);
+}
+
+function execCmd(cmd: string, tolerateStderr = false): Promise<string> {
   return new Promise<string>((resolve, reject) => {
-    const cmd = `llvm-link -S -o ${outFile} ${files.join(' ')}`;
-    // console.log('LINK CMD: ', cmd);
     exec(cmd, (error, stdout, stderr) => {
       if (error) {
         console.log(stdout);
-        reject(new Error(`error: ${error.message}`));
+        reject(new Error(`error in ${cmd}: ${error.message}`));
       } else if (stderr) {
-        console.log(stdout);
-        reject(new Error(`stderr: ${stderr}`));
+        if (tolerateStderr) {
+          resolve(stdout);
+        } else {
+          console.log(stderr);
+          reject(new Error(`stderr in ${cmd}: ${stderr}`));
+        }
       } else {
         resolve(stdout);
       }
@@ -185,27 +177,10 @@ function execLlLink(outFile: string, files: string[]): Promise<string> {
   });
 }
 
-function execLlOpt(inFile: string, outFile: string, opts: string): Promise<string> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function diff(file1: string, file2: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
-    const cmd = `opt ${opts} -S -o ${outFile} ${inFile}`;
-    // console.log('OPT CMD: ', cmd);
-    exec(cmd, (error, stdout, stderr) => {
-      if (error) {
-        console.log(stdout);
-        reject(new Error(`error: ${error.message}`));
-      } else if (stderr) {
-        console.log(stdout);
-        reject(new Error(`stderr: ${stderr}`));
-      } else {
-        resolve(stdout);
-      }
-    });
-  });
-}
-
-function execDiff(file1: string, file2: string): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    exec('diff ' + file1 + ' ' + file2, (error, stdout, stderr) => {
+    exec("diff " + file1 + " " + file2, (error, stdout, stderr) => {
       // console.log('DIFF RES: ', error, error?.code, error?.message, stderr, stdout);
       if (error && error.code! > 1) {
         reject(new Error(`error: ${error.message}`));
