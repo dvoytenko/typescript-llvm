@@ -1,7 +1,7 @@
 import llvm from "llvm-bindings";
 import { CompilerContext } from "../context";
 import { GlobalVar } from "../instr/globalvar";
-import { Pointer, Type, Value } from "../types/base";
+import { ConstValue, Pointer, Type } from "../types/base";
 import { JsCustObject } from "../types/jsobject";
 import { JsType, JsValueType } from "../types/jsvalue";
 import { StructFields, StructType } from "../types/struct";
@@ -33,19 +33,19 @@ export function completeVTable(obj: TsObj, context: CompilerContext) {
   const { vtable } = types;
   const { vtableVar } = obj;
   vtableVar.llVar.setInitializer(
-    vtable.createConst({
+    vtable.constStruct({
       fields: computeFields(obj, context),
       itable: computeITable(obj, context),
-    }).llValue as llvm.Constant
+    }).llValue
   );
 }
 
 function computeFields(
   obj: TsObj,
   context: CompilerContext
-): Value<VTableFields> {
+): ConstValue<VTableFields> {
   const { types, instr, jslib } = context;
-  const { vtable, i8, i32, jsString } = types;
+  const { vtable, i8, i32 } = types;
   const { builder } = instr;
   const { name, shape } = obj;
   const vtFieldsType = vtable.fields.fields;
@@ -69,29 +69,29 @@ function computeFields(
       builder.getInt32Ty()
     ) as llvm.Constant;
 
-    return vtFieldType.createConst({
-      field: jsString.pointer(field.llVar),
+    return vtFieldType.constStruct({
+      field: field.ptr.asConst(),
       jsType: i32.constValue(jsType),
       boxed: i8.constValue(isJsv ? 1 : 0),
-      offset: new Value(i32, offset),
+      offset: i32.constValue(offset),
     });
   });
 
-  return vtFieldsType.createConst({
+  return vtFieldsType.constStruct({
     length: i32.constValue(vtFields.length),
     fields: createArrayConstPtr(
       `u/VT<${name}>/fields`,
       vtFieldType,
       vtFields,
       context
-    ),
+    ).asConst(),
   });
 }
 
 function computeITable(
   obj: TsObj,
   context: CompilerContext
-): Value<VTableITable> {
+): ConstValue<VTableITable> {
   const { types } = context;
   const { vtable, vtableIfc, i32 } = types;
   const { name } = obj;
@@ -99,10 +99,15 @@ function computeITable(
 
   const ifcs = obj.ifcs.map((ifc) => computeIfc(obj, ifc, context));
 
-  return itableType.createConst({
+  return itableType.constStruct({
     autoId: i32.constValue(obj.autoIfc.id),
     length: i32.constValue(ifcs.length),
-    ifcs: createArrayConstPtr(`u/VT<${name}>/itable`, vtableIfc, ifcs, context),
+    ifcs: createArrayConstPtr(
+      `u/VT<${name}>/itable`,
+      vtableIfc,
+      ifcs,
+      context
+    ).asConst(),
   });
 }
 
@@ -110,7 +115,7 @@ function computeIfc(
   obj: TsObj,
   ifc: TsIfc,
   context: CompilerContext
-): Value<VTableIfc> {
+): ConstValue<VTableIfc> {
   const { types, instr } = context;
   const { vtable, vtableIfcField, i8, i32 } = types;
   const { builder } = instr;
@@ -138,31 +143,31 @@ function computeIfc(
         i32.llType
       ) as llvm.Constant;
     } else {
-      offset = i32.constValue(-1).llValue as llvm.Constant;
+      offset = i32.constValue(-1).llValue;
     }
 
-    return vtableIfcField.createConst({
+    return vtableIfcField.constStruct({
       jsType: i32.constValue(jsType),
       boxed: i8.constValue(isJsv ? 1 : 0),
-      offset: new Value(i32, offset),
+      offset: i32.constValue(offset),
     });
   });
 
-  return vtableIfcType.createConst({
+  return vtableIfcType.constStruct({
     id: i32.constValue(ifc.id),
     fields: createArrayConstPtr(
       `u/VT<${name}, ${ifc.name}>/fields`,
       vtableIfcField,
       ifcFields,
       context
-    ),
+    ).asConst(),
   });
 }
 
 function createArrayConstPtr<T extends Type>(
   name: string,
   type: T,
-  values: Value<T>[],
+  values: ConstValue<T>[],
   context: CompilerContext
 ): Pointer<T> {
   const { instr, module } = context;
@@ -171,7 +176,7 @@ function createArrayConstPtr<T extends Type>(
   const arrayType = llvm.ArrayType.get(type.llType, values.length);
   const array = llvm.ConstantArray.get(
     arrayType,
-    values.map((f) => f.llValue as llvm.Constant)
+    values.map((f) => f.llValue)
   );
   const arrayVar = new llvm.GlobalVariable(
     module,

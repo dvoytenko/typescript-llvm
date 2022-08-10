@@ -1,15 +1,8 @@
 import llvm from "llvm-bindings";
-import {
-  I32Type,
-  I64Type,
-  I8Type,
-  Pointer,
-  PointerType,
-  Type,
-  VoidType,
-} from "./base";
+import { Pointer, PointerType, Type, VoidType } from "./base";
 import { BoolType } from "./bool";
 import { FunctionType } from "./func";
+import { I32Type, I64Type, I8Type } from "./inttype";
 import { JsArray } from "./jsarray";
 import { JsNullType } from "./jsnull";
 import { JsNumberType } from "./jsnumber";

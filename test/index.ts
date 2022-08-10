@@ -2,8 +2,7 @@
 import * as path from 'path';
 import {promises as fsPromises} from 'fs';
 import { exec } from 'child_process';
-import { compile } from '../src/compiler';
-import { compile as compile2} from '../src/compiler/compiler2';
+import { compile } from '../src/compiler/compiler';
 
 const TEST = null;
 const CYCLER = false;
@@ -47,9 +46,7 @@ async function test(file: string): Promise<void> {
 
   const sourceFile = path.resolve(DATA_DIR, file);
 
-  // const ll = compile(sourceFile);
-  const ll = compile2(sourceFile);
-  // const ll = compile3(sourceFile);
+  const ll = compile(sourceFile);
 
   const llFile = path.resolve(workDir, file.replace('.tsx', '.ll').replace('.ts', '.ll'));
   await fsPromises.writeFile(llFile, ll);

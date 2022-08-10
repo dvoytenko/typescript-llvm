@@ -4,15 +4,9 @@ import { Function } from "../instr/func";
 import { Globals } from "../instr/globals";
 import { GlobalVar } from "../instr/globalvar";
 import { Types } from "../types";
-import {
-  I32Type,
-  Pointer,
-  PointerType,
-  Type,
-  Value,
-  VoidType,
-} from "../types/base";
+import { Pointer, PointerType, Type, Value, VoidType } from "../types/base";
 import { BoolType } from "../types/bool";
+import { I32Type } from "../types/inttype";
 import { JsArray } from "../types/jsarray";
 import { JsNullType } from "../types/jsnull";
 import { JsNumberType } from "../types/jsnumber";
@@ -108,20 +102,20 @@ export function jslibFactory(gen: Gen): Jslib {
   const { i32, jsNull: jsNullType, jsNumber, vtable } = types;
   const jsNull = instr.globalConstVar(
     "jsnull",
-    jsNullType.createConst({ jsType: i32.constValue(JsType.NULL) })
+    jsNullType.constStruct({ jsType: i32.constValue(JsType.NULL) })
   ).ptr;
   const zero = instr.globalConstVar("zero", jsNumber.constValue(0)).ptr;
   const vtableEmpty = instr.globalConstVar(
     "vtableEmpty",
-    vtable.createConst({
-      fields: vtable.fields.fields.createConst({
+    vtable.constStruct({
+      fields: vtable.fields.fields.constStruct({
         length: i32.constValue(0),
-        fields: vtable.fields.fields.fields.fields.nullptr(),
+        fields: vtable.fields.fields.fields.fields.nullptr().asConst(),
       }),
-      itable: vtable.fields.itable.createConst({
+      itable: vtable.fields.itable.constStruct({
         autoId: i32.constValue(-1),
         length: i32.constValue(0),
-        ifcs: vtable.fields.itable.fields.ifcs.nullptr(),
+        ifcs: vtable.fields.itable.fields.ifcs.nullptr().asConst(),
       }),
     })
   ).ptr;
@@ -421,7 +415,9 @@ function jsStringFactory({ types, instr }: Gen): JsStringLib {
   const { jsString } = types;
   const globalConstVars = new Globals<GlobalVar<JsString>, [string]>(
     (name, value) => {
-      const jss = jsString.constValue(instr, value);
+      const len = value.length;
+      const ptr = instr.globalStringPtr(value);
+      const jss = jsString.constString(len, ptr);
       return instr.globalConstVar(`jss.${name}`, jss);
     }
   );

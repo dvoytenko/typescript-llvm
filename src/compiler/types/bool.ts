@@ -6,7 +6,10 @@ export class BoolType extends Type {
     super(context, llvm.IntegerType.get(context, 1));
   }
 
-  constValue(v: boolean): ConstValue<typeof this> {
-    return new ConstValue(this, llvm.ConstantInt.get(this.llType, v ? 1 : 0));
+  override constValue(v: boolean | llvm.Constant): ConstValue<typeof this> {
+    if (typeof v === "boolean") {
+      return super.constValue(llvm.ConstantInt.get(this.llType, v ? 1 : 0));
+    }
+    return super.constValue(v);
   }
 }

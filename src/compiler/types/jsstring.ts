@@ -1,6 +1,6 @@
 import llvm from "llvm-bindings";
-import { Instr } from "../instr";
-import { I32Type, I8Type, PointerType, Value } from "./base";
+import { ConstValue, Pointer, PointerType } from "./base";
+import { I32Type, I8Type } from "./inttype";
 import { JsType, JsValueType } from "./jsvalue";
 
 export class JsString extends JsValueType<
@@ -23,13 +23,11 @@ export class JsString extends JsValueType<
     );
   }
 
-  constValue(instr: Instr, s: string): Value<typeof this> {
-    const len = s.length;
-    const ptr = instr.globalStringPtr(s);
-    return this.createConst({
+  constString(len: number, ptr: Pointer<I8Type>): ConstValue<typeof this> {
+    return this.constStruct({
       jsType: this.fields.jsType.constValue(this.jsType),
       length: this.fields.length.constValue(len),
-      chars: ptr,
+      chars: ptr.asConst(),
     });
   }
 }

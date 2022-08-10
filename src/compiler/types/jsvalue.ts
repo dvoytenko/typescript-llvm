@@ -1,5 +1,6 @@
 import llvm from "llvm-bindings";
-import { I32Type, Pointer, Value } from "./base";
+import { Pointer, Value } from "./base";
+import { I32Type } from "./inttype";
 import { StructFields, StructType } from "./struct";
 
 // TODO: move to jslib
@@ -42,18 +43,6 @@ export class JsValueType<
       jsType: new I32Type(context),
       ...fields,
     });
-  }
-
-  castFrom(value: Pointer<JsValueType>): Pointer<typeof this> {
-    const valueJsType = value.type.toType.jsType;
-    if (
-      valueJsType !== JsType.UNKNOWN &&
-      this.jsType !== JsType.UNKNOWN &&
-      valueJsType !== this.jsType
-    ) {
-      throw new Error(`Cannot convert ${valueJsType} to ${this.jsType}`);
-    }
-    return new Pointer(this, value.llValue);
   }
 
   loadJsType(

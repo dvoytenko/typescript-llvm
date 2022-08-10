@@ -1,7 +1,8 @@
 import llvm from "llvm-bindings";
 import { Instr } from "../instr";
 import { Types } from "../types";
-import { I8Type, IntType, Pointer, PointerType, Value } from "../types/base";
+import { Pointer, Value } from "../types/base";
+import { I8Type, IntType } from "../types/inttype";
 import { JsValueType } from "../types/jsvalue";
 
 export interface Debug {
@@ -54,12 +55,7 @@ function debugValueFactory(
       return strPtr;
     }
 
-    if (
-      value.isPointer() &&
-      // QQQ: simplify to something like `isPointerTo(JsValueType)`
-      value.type instanceof PointerType &&
-      value.type.toType instanceof JsValueType
-    ) {
+    if (value.isPointer() && value.isPointerToInherited(JsValueType)) {
       const jsv = instr.castPtr("jsv", value, types.jsValue);
       return instr.call("jsv_deb", debugJsvFunc, [jsv]);
     }

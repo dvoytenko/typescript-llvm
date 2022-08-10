@@ -207,7 +207,6 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
 
       const propName = propAssignment.name.text;
 
-      // QQQ: debug map vs struct access
       if (jsType.cust?.fieldNames.includes(propName)) {
         const propValueType = custPtr.type.toType.fields[propName] as Type;
         const propValueConv = instr.strictConvert(propValue, propValueType);

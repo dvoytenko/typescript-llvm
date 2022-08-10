@@ -253,15 +253,15 @@ class Compiler {
 
       const vtableVar = instr.globalConstVar(
         `u/VT<${name}>`,
-        vtable.createConst({
-          fields: vtable.fields.fields.createConst({
+        vtable.constStruct({
+          fields: vtable.fields.fields.constStruct({
             length: i32.constValue(0),
-            fields: vtFieldType.pointerOf().nullptr(),
+            fields: vtFieldType.pointerOf().nullptr().asConst(),
           }),
-          itable: vtable.fields.itable.createConst({
+          itable: vtable.fields.itable.constStruct({
             autoId: i32.constValue(autoIfc.id),
             length: i32.constValue(0),
-            ifcs: vtableIfc.pointerOf().nullptr(),
+            ifcs: vtableIfc.pointerOf().nullptr().asConst(),
           }),
         })
       );

@@ -116,14 +116,6 @@ function jsxAttributesFactory(context: CompilerContext) {
 function jsxExpressionFactory(context: CompilerContext) {
   const { genExpr } = context;
   return (node: ts.JsxExpression) => {
-    const value = node.expression ? genExpr(node.expression) : null;
-
-    // const tsType = checker.getTypeAtLocation(node);
-    // const exprType = node.expression
-    //   ? checker.typeToString(checker.getTypeAtLocation(node.expression))
-    //   : null;
-    // console.log("QQQ: expr: ", checker.typeToString(tsType), exprType, value);
-
-    return value;
+    return node.expression ? genExpr(node.expression) : null;
   };
 }

@@ -1,5 +1,5 @@
 import llvm from "llvm-bindings";
-import { Pointer, Type, Value } from "./base";
+import { ConstValue, Pointer, Type, Value } from "./base";
 
 export interface StructFields {
   [name: string]: Type;
@@ -7,6 +7,10 @@ export interface StructFields {
 
 export type StructValues<T extends StructFields> = {
   [name in keyof T]: Value<T[name]>;
+};
+
+export type StructConstValues<T extends StructFields> = {
+  [name in keyof T]: ConstValue<T[name]>;
 };
 
 export class StructType<Fields extends StructFields> extends Type {
@@ -32,16 +36,13 @@ export class StructType<Fields extends StructFields> extends Type {
     return this.name.toLowerCase();
   }
 
-  createConst(fields: StructValues<Fields>): Value<typeof this> {
+  constStruct(fields: StructConstValues<Fields>): ConstValue<typeof this> {
     const struct = llvm.ConstantStruct.get(
       // TODO: remove unneeded cast.
       this.llType as llvm.StructType,
-      // TODO: figure out this cast.
-      Object.entries(this.fields).map(
-        ([name]) => fields[name].llValue as llvm.Constant
-      )
+      Object.entries(this.fields).map(([name]) => fields[name].llValue)
     );
-    return new Value(this, struct);
+    return super.constValue(struct);
   }
 
   // QQQ: remove?

@@ -1,5 +1,6 @@
 import llvm from "llvm-bindings";
-import { I32Type, PointerType } from "./base";
+import { PointerType } from "./base";
+import { I32Type } from "./inttype";
 import { JsType, JsValueType } from "./jsvalue";
 import { StructFields } from "./struct";
 

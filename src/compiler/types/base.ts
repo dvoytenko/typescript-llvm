@@ -1,18 +1,19 @@
 import llvm from "llvm-bindings";
 
-type IntBits = 8 | 16 | 32 | 64;
-
 export class Type {
   constructor(
     public readonly context: llvm.LLVMContext,
     public readonly llType: llvm.Type
   ) {}
 
+  get typeName(): string {
+    return this.constructor.name.toLowerCase().replace("type", "");
+  }
+
   isA<T extends Type>(other: T): this is T {
     return this.constructor === other.constructor;
   }
 
-  // TODO: consider name: isAssignableTo()
   isInheritedFrom<T extends Type>(other: T): this is T {
     return this instanceof other.constructor;
   }
@@ -41,20 +42,20 @@ export class Type {
     return false;
   }
 
+  value(llValue: llvm.Value): Value<typeof this> {
+    return new Value(this, llValue);
+  }
+
+  constValue(llValue: llvm.Constant): ConstValue<typeof this> {
+    return new ConstValue(this, llValue);
+  }
+
   pointerOf(): PointerType<typeof this> {
     return new PointerType(this.context, this);
   }
 
   pointer(ptr: llvm.Value): Pointer<typeof this> {
     return this.pointerOf().create(ptr);
-  }
-
-  get typeName(): string {
-    return this.constructor.name.toLowerCase().replace("type", "");
-  }
-
-  castFrom(value: Pointer<Type>): Pointer<typeof this> {
-    return new Pointer(this, value.llValue);
   }
 }
 
@@ -73,6 +74,16 @@ export class Value<T extends Type = Type> {
 
   isConst(): this is ConstValue<T> {
     return false;
+  }
+
+  // TODO: Dangerous API. Can we get rid of it?
+  asConst(): ConstValue<T> {
+    if (!(this.llValue instanceof llvm.Constant)) {
+      throw new Error(
+        `${this.llValue} for ${this.type.typeName} is not a constant`
+      );
+    }
+    return new ConstValue<T>(this.type, this.llValue);
   }
 
   isA<T extends Type>(other: T): this is Value<T> {
@@ -109,14 +120,13 @@ export class ConstValue<T extends Type = Type> extends Value<T> {
     super(type, llValue);
   }
 
-  isConst(): this is ConstValue<T> {
+  override isConst(): this is ConstValue<T> {
     return true;
   }
 }
 
 export class PointerType<T extends Type> extends Type {
   static of<T extends Type>(type: T): PointerType<T> {
-    // TODO: singleton
     return new PointerType<T>(type.context, type);
   }
 
@@ -184,33 +194,5 @@ export class Pointer<T extends Type = Type> extends Value<PointerType<T>> {
 export class VoidType extends Type {
   constructor(context: llvm.LLVMContext) {
     super(context, llvm.Type.getVoidTy(context));
-  }
-}
-
-export class IntType<B extends IntBits> extends Type {
-  constructor(context: llvm.LLVMContext, public readonly bits: B) {
-    super(context, llvm.IntegerType.get(context, bits));
-  }
-
-  constValue(v: number): ConstValue<typeof this> {
-    return new ConstValue(this, llvm.ConstantInt.get(this.llType, v));
-  }
-}
-
-export class I8Type extends IntType<8> {
-  constructor(context: llvm.LLVMContext) {
-    super(context, 8);
-  }
-}
-
-export class I32Type extends IntType<32> {
-  constructor(context: llvm.LLVMContext) {
-    super(context, 32);
-  }
-}
-
-export class I64Type extends IntType<64> {
-  constructor(context: llvm.LLVMContext) {
-    super(context, 64);
   }
 }

@@ -1,5 +1,6 @@
 import llvm from "llvm-bindings";
-import { BoxedType, I32Type, Pointer, Value } from "./base";
+import { BoxedType, ConstValue, Pointer, Value } from "./base";
+import { I32Type } from "./inttype";
 import { JsType, JsValueType } from "./jsvalue";
 
 export class JsNumberType
@@ -24,8 +25,8 @@ export class JsNumberType
     this.unboxedType = new I32Type(context);
   }
 
-  constValue(v: number): Value<typeof this> {
-    return this.createConst({
+  override constValue(v: number | llvm.Constant): ConstValue<typeof this> {
+    return this.constStruct({
       jsType: this.fields.jsType.constValue(this.jsType),
       value: this.fields.value.constValue(v),
     });
@@ -71,14 +72,13 @@ export class JsNumberType
     });
   }
 
-  box(unboxed: number | Value<I32Type>): Value<typeof this> {
+  box(unboxed: number | ConstValue<I32Type>): ConstValue<typeof this> {
     const i32 = new I32Type(this.context);
     if (typeof unboxed === "number") {
       unboxed = i32.constValue(unboxed);
     }
-    // QQQ: can we ever guarantee this to be a constant value?
-    return this.createConst({
-      jsType: new Value(i32, llvm.ConstantInt.get(i32.llType, this.jsType)),
+    return this.constStruct({
+      jsType: i32.constValue(this.jsType),
       value: unboxed,
     });
   }

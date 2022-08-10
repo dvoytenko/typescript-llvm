@@ -3,16 +3,13 @@ import { Types } from "../types";
 import {
   BoxedType,
   ConstValue,
-  I32Type,
-  I64Type,
-  I8Type,
-  IntType,
   Pointer,
   PointerType,
   Type,
   Value,
   VoidType,
 } from "../types/base";
+import { IntType, I32Type, I64Type, I8Type } from "../types/inttype";
 import { BoolType } from "../types/bool";
 import { FunctionArgValues, FunctionType } from "../types/func";
 import { JsValueType } from "../types/jsvalue";
@@ -28,7 +25,7 @@ export interface Instr {
   values: InstrValues;
   globalConstVar: <T extends Type>(
     name: string,
-    value: Value<T>
+    value: ConstValue<T>
   ) => GlobalVar<T>;
   globalStringPtr: (value: string) => Pointer<I8Type>;
   alloca: <T extends Type>(
@@ -243,7 +240,7 @@ function sizeofFactory(builder: llvm.IRBuilder, types: Types) {
       i64.llType,
       `${type.typeName}_sizeof`
     );
-    return new ConstValue(i64, intVal as llvm.Constant);
+    return i64.constValue(intVal as llvm.Constant);
   };
 }
 
