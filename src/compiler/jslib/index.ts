@@ -8,47 +8,35 @@ import { Pointer, PointerType, Type, Value, VoidType } from "../types/base";
 import { BoolType } from "../types/bool";
 import { I32Type } from "../types/inttype";
 import { JsArray } from "../types/jsarray";
-import { JsNullType } from "../types/jsnull";
-import { JsNumberType } from "../types/jsnumber";
+import { JsNull } from "../types/jsnull";
+import { JsNumber } from "../types/jsnumber";
 import { JsCustObject, JsObject } from "../types/jsobject";
 import { JsString } from "../types/jsstring";
-import {
-  JsType,
-  JsUnknownType,
-  JsUnknownType2,
-  JsValueType,
-} from "../types/jsvalue";
+import { JsType, JsValue } from "../types/jsvalue";
 import { StructType } from "../types/struct";
 import { VTable, VTableIfcField } from "../types/vtable";
 
 export interface JslibValues {
-  jsNull: Pointer<JsNullType>;
-  zero: Pointer<JsNumberType>;
+  jsNull: Pointer<JsNull>;
+  zero: Pointer<JsNumber>;
   vtableEmpty: Pointer<VTable>;
   jsEmptyObject: JsCustObject;
 }
 
-type AddAnyArgs = [
-  a: PointerType<JsUnknownType2>,
-  b: PointerType<JsUnknownType2>
-];
+type AddAnyArgs = [a: PointerType<JsValue>, b: PointerType<JsValue>];
 
 type SubAnyArgs = AddAnyArgs;
 
 interface JslibFunctions {
-  addAny: Function<PointerType<JsUnknownType2>, AddAnyArgs>;
-  subAny: Function<PointerType<JsUnknownType2>, SubAnyArgs>;
+  addAny: Function<PointerType<JsValue>, AddAnyArgs>;
+  subAny: Function<PointerType<JsValue>, SubAnyArgs>;
   strictEqAny: Function<BoolType, AddAnyArgs>;
 }
 
 interface AddInstr {
   (name: string, a: Value<I32Type>, b: Value<I32Type>): Value<I32Type>;
-  (
-    name: string,
-    a: Pointer<JsNumberType>,
-    b: Pointer<JsNumberType>
-  ): Pointer<JsNumberType>;
-  (name: string, a: Value, b: Value): Pointer<JsUnknownType>;
+  (name: string, a: Pointer<JsNumber>, b: Pointer<JsNumber>): Pointer<JsNumber>;
+  (name: string, a: Value, b: Value): Pointer<JsValue>;
 }
 
 type SubInstr = AddInstr;
@@ -63,14 +51,11 @@ interface JsArrayLib {
 
 interface JsObjectLib {
   create(jsType: JsCustObject): Pointer<JsCustObject>;
-  getField(
-    ptr: Pointer<JsObject>,
-    key: Pointer<JsValueType>
-  ): Pointer<JsValueType>;
+  getField(ptr: Pointer<JsObject>, key: Pointer<JsValue>): Pointer<JsValue>;
   setField(
     ptr: Pointer<JsObject>,
-    key: Pointer<JsValueType>,
-    value: Pointer<JsValueType>
+    key: Pointer<JsValue>,
+    value: Pointer<JsValue>
   ): void;
   getIfc(ptr: Pointer<JsObject>, id: Value<I32Type>): Pointer<VTableIfcField>;
 }
@@ -186,13 +171,10 @@ function addAnyFunctionFactory({ instr, types }: Gen) {
   const jsValuePtr = jsValue.pointerOf();
   const func = instr.func(
     "jsValue_add",
-    types.func<PointerType<JsUnknownType2>, AddAnyArgs>(
-      jsValuePtr as PointerType<JsUnknownType2>,
-      [
-        jsValuePtr as PointerType<JsUnknownType2>,
-        jsValuePtr as PointerType<JsUnknownType2>,
-      ]
-    ),
+    types.func<PointerType<JsValue>, AddAnyArgs>(jsValuePtr, [
+      jsValuePtr,
+      jsValuePtr,
+    ]),
     ["readonly"]
   );
   return func;
@@ -237,13 +219,10 @@ function subAnyFunctionFactory({ instr, types }: Gen) {
   const jsValuePtr = jsValue.pointerOf();
   return instr.func(
     "jsValue_sub",
-    types.func<PointerType<JsUnknownType2>, SubAnyArgs>(
-      jsValuePtr as PointerType<JsUnknownType2>,
-      [
-        jsValuePtr as PointerType<JsUnknownType2>,
-        jsValuePtr as PointerType<JsUnknownType2>,
-      ]
-    ),
+    types.func<PointerType<JsValue>, SubAnyArgs>(jsValuePtr, [
+      jsValuePtr,
+      jsValuePtr,
+    ]),
     ["readonly"]
   );
 }
@@ -298,10 +277,7 @@ function strictEqAnyFunctionFactory({ instr, types }: Gen) {
   const jsValuePtr = jsValue.pointerOf();
   return instr.func(
     "jsValue_strictEq",
-    types.func<BoolType, AddAnyArgs>(bool, [
-      jsValuePtr as PointerType<JsUnknownType2>,
-      jsValuePtr as PointerType<JsUnknownType2>,
-    ]),
+    types.func<BoolType, AddAnyArgs>(bool, [jsValuePtr, jsValuePtr]),
     ["readonly"]
   );
 }
@@ -349,7 +325,7 @@ function jsObjectFactory(
   const jsValuePtr = jsValue.pointerOf();
   const vtablePtr = vtable.pointerOf();
 
-  const keyToString = (key: Pointer<JsValueType>) =>
+  const keyToString = (key: Pointer<JsValue>) =>
     instr.strictConvert(key, types.jsString.pointerOf());
 
   const jsObject_init = instr.func(
@@ -364,7 +340,7 @@ function jsObjectFactory(
   );
   const jsObject_setField = instr.func<
     VoidType,
-    [PointerType<JsObject>, PointerType<JsString>, PointerType<JsValueType>]
+    [PointerType<JsObject>, PointerType<JsString>, PointerType<JsValue>]
   >(
     "jsObject_setField",
     types.func(voidType, [jsObjectPtr, jsStringPtr, jsValuePtr])
@@ -386,7 +362,7 @@ function jsObjectFactory(
       // QQQQ: zeroinitializer for cust?
       return ptr;
     },
-    getField(ptr: Pointer<JsObject>, key: Pointer<JsValueType>) {
+    getField(ptr: Pointer<JsObject>, key: Pointer<JsValue>) {
       const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
       return instr.call("get_field", jsObject_getField, [
         ptr0,
@@ -395,8 +371,8 @@ function jsObjectFactory(
     },
     setField(
       ptr: Pointer<JsObject>,
-      key: Pointer<JsValueType>,
-      value: Pointer<JsValueType>
+      key: Pointer<JsValue>,
+      value: Pointer<JsValue>
     ) {
       const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
       instr.callVoid(jsObject_setField, [ptr0, keyToString(key), value]);

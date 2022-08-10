@@ -29,7 +29,7 @@ interface JsTypeFields extends StructFields {
   jsType: I32Type;
 }
 
-export class JsValueType<
+export class JsValue<
   JST extends JsType = any,
   Fields extends StructFields = {}
 > extends StructType<JsTypeFields & Fields> {
@@ -50,13 +50,5 @@ export class JsValueType<
     ptr: Pointer<typeof this>
   ): Value<I32Type> {
     return this.load(builder, ptr, "jsType");
-  }
-}
-
-export type JsUnknownType2 = JsValueType<any, {}>;
-
-export class JsUnknownType extends JsValueType<any, {}> {
-  constructor(context: llvm.LLVMContext) {
-    super(context, JsType.UNKNOWN, {}, "struct.JsValue");
   }
 }

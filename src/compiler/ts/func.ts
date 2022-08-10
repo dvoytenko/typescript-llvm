@@ -3,7 +3,7 @@ import { CompilerContext } from "../context";
 import { Instr } from "../instr";
 import { Function } from "../instr/func";
 import { Types } from "../types";
-import { tsToGTypeUnboxed } from "./types";
+import { tsToTypeUnboxed } from "./types";
 
 export class TsFunction {
   public generated = false;
@@ -33,14 +33,13 @@ export function declFunction(
   const tsReturnType = checker.getReturnTypeOfSignature(sig);
   // console.log("QQQ: sig: ", checker.signatureToString(sig));
   // console.log("QQQ: ret: ", checker.typeToString(tsReturnType));
-  const returnType = tsToGTypeUnboxed(tsReturnType, node, context);
+  const returnType = tsToTypeUnboxed(tsReturnType, node, context);
   // console.log("QQQ: llReturnType: ", returnType);
 
   const args = node.parameters.map((arg) => {
     // const argName = arg.name.getText();
-    const argType = checker.getTypeAtLocation(arg);
-    const gArgType = tsToGTypeUnboxed(argType, arg, context);
-    return gArgType;
+    const argTsType = checker.getTypeAtLocation(arg);
+    return tsToTypeUnboxed(argTsType, arg, context);
   });
 
   const funcType = types.func(returnType, args);

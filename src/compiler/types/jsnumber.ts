@@ -1,10 +1,10 @@
 import llvm from "llvm-bindings";
 import { BoxedType, ConstValue, Pointer, Value } from "./base";
 import { I32Type } from "./inttype";
-import { JsType, JsValueType } from "./jsvalue";
+import { JsType, JsValue } from "./jsvalue";
 
-export class JsNumberType
-  extends JsValueType<
+export class JsNumber
+  extends JsValue<
     JsType.NUMBER,
     {
       // TODO: switch to double

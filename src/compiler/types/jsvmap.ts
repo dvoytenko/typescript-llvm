@@ -4,7 +4,7 @@ import { Instr } from "../instr";
 import { Pointer, PointerType } from "./base";
 import { I32Type } from "./inttype";
 import { JsString } from "./jsstring";
-import { JsValueType } from "./jsvalue";
+import { JsValue } from "./jsvalue";
 import { StructFields, StructType } from "./struct";
 
 interface MapFields extends StructFields {
@@ -14,15 +14,11 @@ interface MapFields extends StructFields {
 
 interface EntryFields extends StructFields {
   key: PointerType<JsString>;
-  value: PointerType<JsValueType>;
+  value: PointerType<JsValue>;
 }
 
 export class JsvMap extends StructType<MapFields> {
-  constructor(
-    context: llvm.LLVMContext,
-    jsString: JsString,
-    jsValue: JsValueType
-  ) {
+  constructor(context: llvm.LLVMContext, jsString: JsString, jsValue: JsValue) {
     super(context, "struct.JsvMap", {
       length: new I32Type(context),
       entries: new EntryType(context, jsString, jsValue).pointerOf(),
@@ -44,11 +40,7 @@ export class JsvMap extends StructType<MapFields> {
 }
 
 class EntryType extends StructType<EntryFields> {
-  constructor(
-    context: llvm.LLVMContext,
-    jsString: JsString,
-    jsValue: JsValueType
-  ) {
+  constructor(context: llvm.LLVMContext, jsString: JsString, jsValue: JsValue) {
     super(context, "struct.JsvMapEntry", {
       key: jsString.pointerOf(),
       value: jsValue.pointerOf(),

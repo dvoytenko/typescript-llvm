@@ -3,7 +3,7 @@ import { Instr } from "../instr";
 import { Types } from "../types";
 import { Pointer, Value } from "../types/base";
 import { I8Type, IntType } from "../types/inttype";
-import { JsValueType } from "../types/jsvalue";
+import { JsValue } from "../types/jsvalue";
 
 export interface Debug {
   printf: (fmt: string, args: (Value | llvm.Value)[]) => void;
@@ -55,7 +55,7 @@ function debugValueFactory(
       return strPtr;
     }
 
-    if (value.isPointer() && value.isPointerToInherited(JsValueType)) {
+    if (value.isPointer() && value.isPointerToInherited(JsValue)) {
       const jsv = instr.castPtr("jsv", value, types.jsValue);
       return instr.call("jsv_deb", debugJsvFunc, [jsv]);
     }

@@ -12,7 +12,7 @@ import {
 import { IntType, I32Type, I64Type, I8Type } from "../types/inttype";
 import { BoolType } from "../types/bool";
 import { FunctionArgValues, FunctionType } from "../types/func";
-import { JsValueType } from "../types/jsvalue";
+import { JsValue } from "../types/jsvalue";
 import { StructType } from "../types/struct";
 import { Function } from "./func";
 import { Globals } from "./globals";
@@ -304,7 +304,7 @@ function strictConvertFactory(
     // TODO: more canonical parent/child inheritence.
     if (
       toType.isPointerTo(types.jsValue) &&
-      value.isPointerToInherited(JsValueType)
+      value.isPointerToInherited(JsValue)
     ) {
       return cast("cast", value, types.jsValue) as unknown as Value<T>;
     }
@@ -314,7 +314,7 @@ function strictConvertFactory(
       value.isPointerTo(types.jsValue) &&
       !toType.isPointerTo(types.jsValue) &&
       toType.isPointer() &&
-      toType.isPointerTo(JsValueType)
+      toType.isPointerTo(JsValue)
     ) {
       // TODO: check that typing is compatible via IR (jsType === 8 or throw).
       return cast("jsv_to_obj", value, toType.toType) as unknown as Value<T>;
@@ -323,7 +323,7 @@ function strictConvertFactory(
     // Unbox.
     if (
       !toType.isPointer() &&
-      value.isPointerTo(JsValueType) &&
+      value.isPointerTo(JsValue) &&
       value.isBoxed() &&
       value.type.toType.unboxedType.isA(toType)
     ) {

@@ -2,7 +2,7 @@ import ts from "typescript";
 import { CompilerContext } from "../../context";
 import { Pointer, Type, Value } from "../../types/base";
 import { TsFunction } from "../func";
-import { tsToGTypeUnboxed, tsToStructFields } from "../types";
+import { tsToTypeUnboxed, tsToStructFields } from "../types";
 import { jsxExprFactories } from "./jsx";
 
 export type ExprHandler<E extends ts.Expression> = (
@@ -126,8 +126,8 @@ function identifierFactory(context: CompilerContext) {
 
     const value = ref(decl);
     const tsType = checker.getTypeOfSymbolAtLocation(symbol, node);
-    const gType = tsToGTypeUnboxed(tsType, node, context);
-    return instr.strictConvert(value, gType);
+    const type = tsToTypeUnboxed(tsType, node, context);
+    return instr.strictConvert(value, type);
   };
 }
 
@@ -238,7 +238,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
     const propName = node.name.text;
     const symbol = checker.getSymbolAtLocation(node.name);
     if (symbol) {
-      const valueType = tsToGTypeUnboxed(
+      const valueType = tsToTypeUnboxed(
         checker.getTypeOfSymbolAtLocation(symbol, node),
         node,
         context

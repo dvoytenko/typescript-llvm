@@ -6,8 +6,9 @@ import { execFile } from "./wasmer";
 import { buildCycler } from "./llcycler";
 
 const TEST = null;
-const WASM = true;
-const WASM_EXEC = true;
+const DIFF = true;
+const WASM = false;
+const WASM_EXEC = false;
 const CYCLER = false;
 
 console.log("Any specific test specified? ", process.argv[2]);
@@ -68,31 +69,38 @@ async function test(file: string): Promise<void> {
 
   if (CYCLER) {
     runCycler(workDir, llLinkedFile);
-  } else {
-    const result = await execLl(llLinkedFile);
-    console.log(`${"\x1b[34m"}RESULT:\n${result}`, "\x1b[0m");
+    return;
+  }
 
-    const llOptFile = path.resolve(workDir, llFile.replace(".ll", ".Oz.ll"));
-    await llOpt(llFile, llOptFile, "-Oz");
+  const result = await execLl(llLinkedFile);
+  console.log(`${"\x1b[34m"}RESULT:\n${result}`, "\x1b[0m");
 
-    if (WASM) {
-      await buildWasm(llFile);
-      if (WASM_EXEC) {
-        const wasmLinkedFile = await buildWasm(llLinkedFile);
-        await execWasm(wasmLinkedFile);
-      }
+  const llOptFile = path.resolve(workDir, llFile.replace(".ll", ".Oz.ll"));
+  await llOpt(llFile, llOptFile, "-Oz");
+
+  if (WASM) {
+    await buildWasm(llFile);
+    if (WASM_EXEC) {
+      const wasmLinkedFile = await buildWasm(llLinkedFile);
+      await execWasm(wasmLinkedFile);
     }
   }
 
-  /* QQQ
-  const origFile = path.resolve(DATA_DIR, llFile.replace('.ll', '.res'));
-  const resultFile = path.resolve(workDir, path.basename(llFile, '.ll') + '.res');
-  console.log('RESULT FILE: ', resultFile);
-  await fsPromises.writeFile(resultFile, result);
+  if (DIFF) {
+    const origFile = sourceFile.replace(".tsx", ".res").replace(".ts", ".res");
+    const resultFile = path.resolve(
+      workDir,
+      path.basename(llFile, ".ll") + ".res"
+    );
+    await fsPromises.writeFile(resultFile, result);
 
-  const diff = await execDiff(origFile, resultFile);
-  console.log('DIFF: ', diff);
-  */
+    const diffResult = await diff(origFile, resultFile);
+    if (diffResult.trim()) {
+      console.log(`${"\x1b[31m"}DIFF:\n${diffResult}`, "\x1b[0m");
+    } else {
+      console.log(`${"\x1b[32m"}NO DIFF${"\x1b[0m"}`);
+    }
+  }
 }
 
 async function runCycler(workDir: string, file: string) {
@@ -177,13 +185,12 @@ function execCmd(cmd: string, tolerateStderr = false): Promise<string> {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function diff(file1: string, file2: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
-    exec("diff " + file1 + " " + file2, (error, stdout, stderr) => {
-      // console.log('DIFF RES: ', error, error?.code, error?.message, stderr, stdout);
+    const cmd = "diff " + file1 + " " + file2;
+    exec(cmd, (error, stdout, stderr) => {
       if (error && error.code! > 1) {
-        reject(new Error(`error: ${error.message}`));
+        reject(new Error(`error in ${cmd}: ${error.message}`));
       } else if (stderr) {
         resolve(stderr);
       } else {

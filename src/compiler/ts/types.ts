@@ -1,26 +1,26 @@
 import ts from "typescript";
 import { CompilerContext } from "../context";
 import { PointerType, Type } from "../types/base";
-import { JsValueType } from "../types/jsvalue";
+import { JsValue } from "../types/jsvalue";
 import { StructFields } from "../types/struct";
 
-export function tsToGTypeUnboxed(
+export function tsToTypeUnboxed(
   tsType: ts.Type,
   node: ts.Node,
   context: CompilerContext
 ): Type {
-  const type = tsToGType(tsType, node, context);
+  const type = tsToType(tsType, node, context);
   if (type.toType.isBoxed() && !tsType.isUnionOrIntersection()) {
     return type.toType.unboxedType;
   }
   return type;
 }
 
-export function tsToGType(
+export function tsToType(
   tsType: ts.Type,
   node: ts.Node,
   context: CompilerContext
-): PointerType<JsValueType> {
+): PointerType<JsValue> {
   const { types } = context;
   logType(tsType, context);
 
@@ -174,9 +174,8 @@ export function tsToStructFields(
   const shape: StructFields = {};
   for (const prop of tsType.getProperties()) {
     const propName = prop.name;
-    const propType = checker.getTypeOfSymbolAtLocation(prop, node);
-    const propGType = tsToGTypeUnboxed(propType, node, compilerContext);
-    shape[propName] = propGType;
+    const propTsType = checker.getTypeOfSymbolAtLocation(prop, node);
+    shape[propName] = tsToTypeUnboxed(propTsType, node, compilerContext);
   }
   return shape;
 }

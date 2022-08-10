@@ -4,7 +4,7 @@ import { CompilerContext } from "../../context";
 import { Value } from "../../types/base";
 import { StructFields, StructValues } from "../../types/struct";
 import { notNull } from "../../util";
-import { tsToGTypeUnboxed } from "../types";
+import { tsToTypeUnboxed } from "../types";
 
 export const jsxExprFactories: ExprFactories = {
   [ts.SyntaxKind.JsxElement]: jsxElementFactory,
@@ -82,17 +82,17 @@ function jsxAttributesFactory(context: CompilerContext) {
     for (const prop of node.properties) {
       if (ts.isJsxAttribute(prop)) {
         const propName = prop.name.text;
-        const propType = checker.getTypeAtLocation(prop);
-        const propGType = tsToGTypeUnboxed(propType, prop, context);
+        const propTsType = checker.getTypeAtLocation(prop);
+        const propType = tsToTypeUnboxed(propTsType, prop, context);
         const propValue = prop.initializer
           ? genExpr(prop.initializer)
           : types.bool.constValue(true);
         if (!(propValue instanceof Value)) {
           throw new Error("cannot use value for JSX expression");
         }
-        shape[propName] = propGType;
+        shape[propName] = propType;
         values[propName] = propValue;
-        nameParts.push(`${propName}: ${checker.typeToString(propType)}`);
+        nameParts.push(`${propName}: ${checker.typeToString(propTsType)}`);
       } else {
         throw new Error("Non-supported JsxAttributeLike");
       }

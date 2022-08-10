@@ -3,7 +3,7 @@ import { CompilerContext } from "../context";
 import { GlobalVar } from "../instr/globalvar";
 import { ConstValue, Pointer, Type } from "../types/base";
 import { JsCustObject } from "../types/jsobject";
-import { JsType, JsValueType } from "../types/jsvalue";
+import { JsType, JsValue } from "../types/jsvalue";
 import { StructFields, StructType } from "../types/struct";
 import { VTable, VTableFields, VTableIfc, VTableITable } from "../types/vtable";
 
@@ -54,13 +54,13 @@ function computeFields(
   const shapeType = obj.type.cust;
   const nullptr = shapeType.pointerOf().nullptr();
 
-  const vtFields = Object.entries(shape).map(([fieldName, gType]) => {
+  const vtFields = Object.entries(shape).map(([fieldName, type]) => {
     const field = jslib.jsString.globalConstVar(fieldName);
-    const isJsv = gType.isPointer() && gType.toType instanceof JsValueType;
+    const isJsv = type.isPointerTo(JsValue);
     // TODO: bool and other boxed types.
     const jsType = isJsv
-      ? gType.toType.jsType
-      : gType.isA(i32)
+      ? type.toType.jsType
+      : type.isA(i32)
       ? JsType.NUMBER
       : JsType.UNKNOWN;
     const fieldPtr = instr.gepStructField(nullptr, fieldName);
@@ -126,12 +126,12 @@ function computeIfc(
   const shapeType = obj.type.cust;
   const nullptr = shapeType.pointerOf().nullptr();
 
-  const ifcFields = Object.entries(ifc.shape).map(([fieldName, gType]) => {
-    const isJsv = gType.isPointer() && gType.toType instanceof JsValueType;
+  const ifcFields = Object.entries(ifc.shape).map(([fieldName, type]) => {
+    const isJsv = type.isPointerTo(JsValue);
     // TODO: bool and other boxed types.
     const jsType = isJsv
-      ? gType.toType.jsType
-      : gType.isA(i32)
+      ? type.toType.jsType
+      : type.isA(i32)
       ? JsType.NUMBER
       : JsType.UNKNOWN;
 

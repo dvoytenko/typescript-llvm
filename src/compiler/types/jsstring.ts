@@ -1,9 +1,9 @@
 import llvm from "llvm-bindings";
 import { ConstValue, Pointer, PointerType } from "./base";
 import { I32Type, I8Type } from "./inttype";
-import { JsType, JsValueType } from "./jsvalue";
+import { JsType, JsValue } from "./jsvalue";
 
-export class JsString extends JsValueType<
+export class JsString extends JsValue<
   JsType.STRING,
   {
     length: I32Type;

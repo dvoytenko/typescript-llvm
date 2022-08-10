@@ -1,6 +1,6 @@
 import llvm from "llvm-bindings";
 import { Pointer, PointerType } from "./base";
-import { JsType, JsValueType } from "./jsvalue";
+import { JsType, JsValue } from "./jsvalue";
 import { JsvMap } from "./jsvmap";
 import { StructFields, StructType } from "./struct";
 import { VTable } from "./vtable";
@@ -11,7 +11,7 @@ export interface JsObjectFields extends StructFields {
   cust: StructType<any>;
 }
 
-export class JsObject extends JsValueType<JsType.OBJECT, JsObjectFields> {
+export class JsObject extends JsValue<JsType.OBJECT, JsObjectFields> {
   constructor(
     context: llvm.LLVMContext,
     vtableType: VTable,
