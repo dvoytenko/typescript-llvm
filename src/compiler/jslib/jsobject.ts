@@ -1,10 +1,11 @@
 import { Instr } from "../instr";
+import { StructType } from "../types";
 import { Pointer, PointerType, Value, VoidType } from "../types/base";
 import { I32Type } from "../types/inttype";
 import { JsCustObject, JsObject } from "../types/jsobject";
 import { JsString } from "../types/jsstring";
 import { JsValue } from "../types/jsvalue";
-import { VTableIfcField } from "../types/vtable";
+import { VTable, VTableIfcField } from "../types/vtable";
 import { JslibValues } from "./values";
 
 export interface JsObjectLib {
@@ -90,4 +91,35 @@ export function jsObjectFactory(
       return instr.call("get_ifc", vTable_getIfc, [ptr0, id]);
     },
   };
+}
+
+export function createEmptyVtable(instr: Instr) {
+  const { types } = instr;
+  const { i32, vtable } = types;
+  return instr.globalConstVar(
+    "vtableEmpty",
+    vtable.constStruct({
+      fields: vtable.fields.fields.constStruct({
+        length: i32.constValue(0),
+        fields: vtable.fields.fields.fields.fields.nullptr().asConst(),
+      }),
+      itable: vtable.fields.itable.constStruct({
+        autoId: i32.constValue(-1),
+        length: i32.constValue(0),
+        ifcs: vtable.fields.itable.fields.ifcs.nullptr().asConst(),
+      }),
+    })
+  ).ptr;
+}
+
+export function createEmptyJsObject(
+  instr: Instr,
+  vtableEmpty: Pointer<VTable>
+) {
+  const { types } = instr;
+  return types.jsCustObject(
+    "JsCustObject.None",
+    new StructType(types.context, "None", {}),
+    vtableEmpty
+  );
 }

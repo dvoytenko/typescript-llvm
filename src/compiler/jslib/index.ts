@@ -2,7 +2,6 @@ import { Debug } from "../debug";
 import { Instr } from "../instr";
 import { Types } from "../types";
 import { JsType } from "../types/jsvalue";
-import { StructType } from "../types/struct";
 import {
   addAnyFunctionFactory,
   AddAnyType,
@@ -14,7 +13,12 @@ import {
   SubInstr,
 } from "./arithm";
 import { JslibValues } from "./values";
-import { jsObjectFactory, JsObjectLib } from "./jsobject";
+import {
+  createEmptyJsObject,
+  createEmptyVtable,
+  jsObjectFactory,
+  JsObjectLib,
+} from "./jsobject";
 import {
   strictEqAnyFunctionFactory,
   strictEqFactory,
@@ -50,35 +54,18 @@ export interface Gen {
 
 export function jslibFactory(gen: Gen): Jslib {
   const { types, instr } = gen;
-  const { i32, jsNull: jsNullType, jsNumber, vtable } = types;
+  const { i32, jsNull: jsNullType, jsNumber } = types;
   const jsNull = instr.globalConstVar(
     "jsnull",
     jsNullType.constStruct({ jsType: i32.constValue(JsType.NULL) })
   ).ptr;
   const zero = instr.globalConstVar("zero", jsNumber.constValue(0)).ptr;
-  const vtableEmpty = instr.globalConstVar(
-    "vtableEmpty",
-    vtable.constStruct({
-      fields: vtable.fields.fields.constStruct({
-        length: i32.constValue(0),
-        fields: vtable.fields.fields.fields.fields.nullptr().asConst(),
-      }),
-      itable: vtable.fields.itable.constStruct({
-        autoId: i32.constValue(-1),
-        length: i32.constValue(0),
-        ifcs: vtable.fields.itable.fields.ifcs.nullptr().asConst(),
-      }),
-    })
-  ).ptr;
+  const vtableEmpty = createEmptyVtable(instr);
   const values: JslibValues = {
     jsNull,
     zero,
     vtableEmpty,
-    jsEmptyObject: types.jsCustObject(
-      "JsCustObject.None",
-      new StructType(types.context, "None", {}),
-      vtableEmpty
-    ),
+    jsEmptyObject: createEmptyJsObject(instr, vtableEmpty),
   };
   const funcs: JslibFunctions = {
     addAny: addAnyFunctionFactory(instr),
@@ -86,7 +73,7 @@ export function jslibFactory(gen: Gen): Jslib {
     strictEqAny: strictEqAnyFunctionFactory(instr),
   };
   return {
-    instr: gen.instr,
+    instr,
     values,
     funcs,
     add: addFactory(instr, funcs.addAny),
