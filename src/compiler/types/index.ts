@@ -37,6 +37,7 @@ export {
   Value,
   VoidType,
   JsValue,
+  JsNumber,
 };
 
 export interface Types {

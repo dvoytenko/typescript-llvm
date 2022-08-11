@@ -60,6 +60,7 @@ export interface InstrValues {}
 
 export interface Instr {
   builder: llvm.IRBuilder;
+  types: Types;
   values: InstrValues;
   globalConstVar: <T extends Type>(
     name: string,
@@ -115,6 +116,7 @@ export function instrFactory(
   const gepStructField = gepStructFieldFactory(builder);
   return {
     builder,
+    types,
     values,
     globalConstVar: (name, value) => new GlobalVar(module, name, value),
     globalStringPtr: (value) =>

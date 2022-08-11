@@ -1,67 +1,33 @@
 import { Debug } from "../debug";
 import { Instr } from "../instr";
-import { Function } from "../instr/func";
-import { Globals } from "../instr/globals";
-import { GlobalVar } from "../instr/globalvar";
 import { Types } from "../types";
-import { Pointer, PointerType, Type, Value, VoidType } from "../types/base";
-import { BoolType } from "../types/bool";
-import { I32Type } from "../types/inttype";
-import { JsArray } from "../types/jsarray";
-import { JsNull } from "../types/jsnull";
-import { JsNumber } from "../types/jsnumber";
-import { JsCustObject, JsObject } from "../types/jsobject";
-import { JsString } from "../types/jsstring";
-import { JsType, JsValue } from "../types/jsvalue";
+import { JsType } from "../types/jsvalue";
 import { StructType } from "../types/struct";
-import { VTable, VTableIfcField } from "../types/vtable";
+import {
+  addAnyFunctionFactory,
+  AddAnyType,
+  addFactory,
+  AddInstr,
+  subAnyFunctionFactory,
+  SubAnyType,
+  subFactory,
+  SubInstr,
+} from "./arithm";
+import { JslibValues } from "./values";
+import { jsObjectFactory, JsObjectLib } from "./jsobject";
+import {
+  strictEqAnyFunctionFactory,
+  strictEqFactory,
+  StrictEqFunction,
+  StrictEqInstr,
+} from "./stricteq";
+import { jsStringFactory, JsStringLib } from "./jsstring";
+import { jsArrayFactory, JsArrayLib } from "./jsarray";
 
-export interface JslibValues {
-  jsNull: Pointer<JsNull>;
-  zero: Pointer<JsNumber>;
-  vtableEmpty: Pointer<VTable>;
-  jsEmptyObject: JsCustObject;
-}
-
-type AddAnyArgs = [a: PointerType<JsValue>, b: PointerType<JsValue>];
-
-type SubAnyArgs = AddAnyArgs;
-
-interface JslibFunctions {
-  addAny: Function<PointerType<JsValue>, AddAnyArgs>;
-  subAny: Function<PointerType<JsValue>, SubAnyArgs>;
-  strictEqAny: Function<BoolType, AddAnyArgs>;
-}
-
-interface AddInstr {
-  (name: string, a: Value<I32Type>, b: Value<I32Type>): Value<I32Type>;
-  (name: string, a: Pointer<JsNumber>, b: Pointer<JsNumber>): Pointer<JsNumber>;
-  (name: string, a: Value, b: Value): Pointer<JsValue>;
-}
-
-type SubInstr = AddInstr;
-
-interface StrictEqInstr {
-  (name: string, a: Value, b: Value): Value<BoolType>;
-}
-
-interface JsArrayLib {
-  createWithValues(values: Pointer<Type>[]): Pointer<JsArray>;
-}
-
-interface JsObjectLib {
-  create(jsType: JsCustObject): Pointer<JsCustObject>;
-  getField(ptr: Pointer<JsObject>, key: Pointer<JsValue>): Pointer<JsValue>;
-  setField(
-    ptr: Pointer<JsObject>,
-    key: Pointer<JsValue>,
-    value: Pointer<JsValue>
-  ): void;
-  getIfc(ptr: Pointer<JsObject>, id: Value<I32Type>): Pointer<VTableIfcField>;
-}
-
-interface JsStringLib {
-  globalConstVar: (s: string) => GlobalVar<JsString>;
+export interface JslibFunctions {
+  addAny: AddAnyType;
+  subAny: SubAnyType;
+  strictEqAny: StrictEqFunction;
 }
 
 export interface Jslib {
@@ -115,287 +81,19 @@ export function jslibFactory(gen: Gen): Jslib {
     ),
   };
   const funcs: JslibFunctions = {
-    addAny: addAnyFunctionFactory(gen),
-    subAny: subAnyFunctionFactory(gen),
-    strictEqAny: strictEqAnyFunctionFactory(gen),
+    addAny: addAnyFunctionFactory(instr),
+    subAny: subAnyFunctionFactory(instr),
+    strictEqAny: strictEqAnyFunctionFactory(instr),
   };
   return {
     instr: gen.instr,
     values,
     funcs,
-    add: addFactory(gen, values, funcs),
-    sub: subFactory(gen, values, funcs),
-    strictEq: strictEqFactory(gen, values, funcs),
-    jsArray: jsArrayFactory(gen),
-    jsObject: jsObjectFactory(gen, values),
-    jsString: jsStringFactory(gen),
-  };
-}
-
-function addFactory(
-  { instr, types }: Gen,
-  values: JslibValues,
-  funcs: JslibFunctions
-): AddInstr {
-  const { i32, jsNumber, jsValue } = types;
-  const jsNumberPtr = jsNumber.pointerOf();
-  const jsValuePtr = jsValue.pointerOf();
-  return (name: string, a: Value, b: Value): Value<any> => {
-    // TODO: the rules are incomplete and mostly wrong.
-
-    // Both values are numeric: the result is numeric.
-    if (
-      (a.isA(i32) || a.isA(jsNumberPtr)) &&
-      (b.isA(i32) || b.isA(jsNumberPtr))
-    ) {
-      const numA = a.isA(i32) ? a : instr.loadUnboxed(a);
-      const numB = b.isA(i32) ? b : instr.loadUnboxed(b);
-      const numRes = instr.add(`${name}_sum`, numA, numB);
-      if (a.isA(jsNumberPtr) || b.isA(jsNumberPtr)) {
-        const ptr = instr.malloc(name, jsNumber);
-        instr.storeBoxed(ptr, numRes);
-        return ptr;
-      }
-      return numRes;
-    }
-
-    // A mix of types.
-    const jsvA = instr.strictConvert(a, jsValuePtr);
-    const jsvB = instr.strictConvert(b, jsValuePtr);
-    return instr.call(name, funcs.addAny, [jsvA, jsvB]);
-  };
-}
-
-function addAnyFunctionFactory({ instr, types }: Gen) {
-  const { jsValue } = types;
-  const jsValuePtr = jsValue.pointerOf();
-  const func = instr.func(
-    "jsValue_add",
-    types.func<PointerType<JsValue>, AddAnyArgs>(jsValuePtr, [
-      jsValuePtr,
-      jsValuePtr,
-    ]),
-    ["readonly"]
-  );
-  return func;
-}
-
-function subFactory(
-  { instr, types }: Gen,
-  values: JslibValues,
-  funcs: JslibFunctions
-): SubInstr {
-  const { i32, jsNumber, jsValue } = types;
-  const jsNumberPtr = jsNumber.pointerOf();
-  const jsValuePtr = jsValue.pointerOf();
-  return (name: string, a: Value, b: Value): Value<any> => {
-    // TODO: the rules are incomplete and mostly wrong.
-
-    // Both values are numeric: the result is numeric.
-    if (
-      (a.isA(i32) || a.isA(jsNumberPtr)) &&
-      (b.isA(i32) || b.isA(jsNumberPtr))
-    ) {
-      const numA = a.isA(i32) ? a : instr.loadUnboxed(a);
-      const numB = b.isA(i32) ? b : instr.loadUnboxed(b);
-      const numRes = instr.sub(`${name}_sub`, numA, numB);
-      if (a.isA(jsNumberPtr) || b.isA(jsNumberPtr)) {
-        const ptr = instr.malloc(name, jsNumber);
-        instr.storeBoxed(ptr, numRes);
-        return ptr;
-      }
-      return numRes;
-    }
-
-    // A mix of types.
-    const jsvA = instr.strictConvert(a, jsValuePtr);
-    const jsvB = instr.strictConvert(b, jsValuePtr);
-    return instr.call(name, funcs.subAny, [jsvA, jsvB]);
-  };
-}
-
-function subAnyFunctionFactory({ instr, types }: Gen) {
-  const { jsValue } = types;
-  const jsValuePtr = jsValue.pointerOf();
-  return instr.func(
-    "jsValue_sub",
-    types.func<PointerType<JsValue>, SubAnyArgs>(jsValuePtr, [
-      jsValuePtr,
-      jsValuePtr,
-    ]),
-    ["readonly"]
-  );
-}
-
-function strictEqFactory(
-  { instr, types }: Gen,
-  values: JslibValues,
-  funcs: JslibFunctions
-): StrictEqInstr {
-  const { i32, bool, jsNull, jsNumber, jsValue } = types;
-  const jsNullPtr = jsNull.pointerOf();
-  const jsNumberPtr = jsNumber.pointerOf();
-  const jsValuePtr = jsValue.pointerOf();
-  return (name: string, a: Value, b: Value): Value<BoolType> => {
-    // TODO: the rules are incomplete and mostly wrong.
-
-    // Both values are nulls: equality is confirmed.
-    if (a.isA(jsNullPtr) && b.isA(jsNullPtr)) {
-      return bool.constValue(true);
-    }
-
-    // One value is null (`a === null`): check whether the other one is too.
-    if (a.isA(jsNullPtr) || b.isA(jsNullPtr)) {
-      const other = instr.strictConvert(a.isA(jsNullPtr) ? b : a, jsValuePtr);
-      const otherJsType = instr.loadStructField(other, "jsType");
-      return instr.icmpEq(name, otherJsType, i32.constValue(jsNull.jsType));
-    }
-
-    // Both values are numeric: compare numbers.
-    if (
-      (a.isA(i32) || a.isA(jsNumberPtr)) &&
-      (b.isA(i32) || b.isA(jsNumberPtr))
-    ) {
-      const numA = a.isA(i32) ? a : instr.loadUnboxed(a);
-      const numB = b.isA(i32) ? b : instr.loadUnboxed(b);
-      return instr.icmpEq(name, numA, numB);
-    }
-
-    // A mix of types.
-    const jsvA = instr.strictConvert(a, jsValuePtr);
-    const jsvB = instr.strictConvert(b, jsValuePtr);
-    return instr.call(name, funcs.strictEqAny, [jsvA, jsvB]);
-  };
-}
-
-function strictEqAnyFunctionFactory({ instr, types }: Gen) {
-  const { bool, jsValue } = types;
-  const jsValuePtr = jsValue.pointerOf();
-  return instr.func(
-    "jsValue_strictEq",
-    types.func<BoolType, AddAnyArgs>(bool, [jsValuePtr, jsValuePtr]),
-    ["readonly"]
-  );
-}
-
-function jsArrayFactory({ types, instr }: Gen): JsArrayLib {
-  const { jsArray, jsValue, i32, i64 } = types;
-  return {
-    createWithValues(values: Pointer<Type>[]): Pointer<JsArray> {
-      const arr = instr.malloc(
-        "arr",
-        jsValue.pointerOf(),
-        i64.constValue(values.length)
-      );
-      for (let i = 0; i < values.length; i++) {
-        const value = values[i];
-        const convValue = instr.strictConvert(value, jsValue.pointerOf());
-        const valuePtr = new Pointer(
-          arr.type.toType,
-          instr.builder.CreateGEP(jsValue.pointerOf().llType, arr.llValue, [
-            i32.constValue(i).llValue,
-          ])
-        );
-        instr.store(valuePtr, convValue);
-      }
-
-      const ptr = instr.malloc("jsa", jsArray);
-      jsArray.storeStruct(instr.builder, ptr, {
-        jsType: i32.constValue(jsArray.jsType),
-        length: i32.constValue(values.length),
-        arr,
-      });
-      return ptr;
-    },
-  };
-}
-
-function jsObjectFactory(
-  { types, instr }: Gen,
-  values: JslibValues
-): JsObjectLib {
-  const { voidType, jsValue, jsString, jsObject, vtable, vtableIfcField, i32 } =
-    types;
-  const jsStringPtr = jsString.pointerOf();
-  const jsObjectPtr = jsObject.pointerOf();
-  const jsValuePtr = jsValue.pointerOf();
-  const vtablePtr = vtable.pointerOf();
-
-  const keyToString = (key: Pointer<JsValue>) =>
-    instr.strictConvert(key, types.jsString.pointerOf());
-
-  const jsObject_init = instr.func(
-    "jsObject_init",
-    types.func(voidType, [jsObjectPtr, vtablePtr])
-  );
-
-  const jsObject_getField = instr.func(
-    "jsObject_getField",
-    types.func(jsValuePtr, [jsObjectPtr, jsStringPtr]),
-    ["readonly"]
-  );
-  const jsObject_setField = instr.func<
-    VoidType,
-    [PointerType<JsObject>, PointerType<JsString>, PointerType<JsValue>]
-  >(
-    "jsObject_setField",
-    types.func(voidType, [jsObjectPtr, jsStringPtr, jsValuePtr])
-  );
-  const vTable_getIfc = instr.func(
-    "vTable_getIfc",
-    types.func(vtableIfcField.pointerOf(), [jsObjectPtr, i32]),
-    ["readonly"]
-  );
-
-  return {
-    create(jsType: JsCustObject) {
-      const ptr = instr.malloc("jso", jsType);
-      const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
-      instr.callVoid(jsObject_init, [
-        ptr0,
-        jsType.vtablePtr ?? values.vtableEmpty,
-      ]);
-      // QQQQ: zeroinitializer for cust?
-      return ptr;
-    },
-    getField(ptr: Pointer<JsObject>, key: Pointer<JsValue>) {
-      const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
-      return instr.call("get_field", jsObject_getField, [
-        ptr0,
-        keyToString(key),
-      ]);
-    },
-    setField(
-      ptr: Pointer<JsObject>,
-      key: Pointer<JsValue>,
-      value: Pointer<JsValue>
-    ) {
-      const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
-      instr.callVoid(jsObject_setField, [ptr0, keyToString(key), value]);
-    },
-    getIfc(
-      ptr: Pointer<JsObject>,
-      id: Value<I32Type>
-    ): Pointer<VTableIfcField> {
-      const ptr0 = instr.strictConvert(ptr, jsObjectPtr);
-      return instr.call("get_ifc", vTable_getIfc, [ptr0, id]);
-    },
-  };
-}
-
-function jsStringFactory({ types, instr }: Gen): JsStringLib {
-  const { jsString } = types;
-  const globalConstVars = new Globals<GlobalVar<JsString>, [string]>(
-    (name, value) => {
-      const len = value.length;
-      const ptr = instr.globalStringPtr(value);
-      const jss = jsString.constString(len, ptr);
-      return instr.globalConstVar(`jss.${name}`, jss);
-    }
-  );
-  return {
-    globalConstVar(s: string): GlobalVar<JsString> {
-      return globalConstVars.get(s, s);
-    },
+    add: addFactory(instr, funcs.addAny),
+    sub: subFactory(instr, funcs.subAny),
+    strictEq: strictEqFactory(instr, funcs.strictEqAny),
+    jsArray: jsArrayFactory(instr),
+    jsObject: jsObjectFactory(instr, values),
+    jsString: jsStringFactory(instr),
   };
 }
