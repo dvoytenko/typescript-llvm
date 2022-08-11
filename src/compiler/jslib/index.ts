@@ -241,15 +241,13 @@ function strictEqFactory(
 
     // Both values are nulls: equality is confirmed.
     if (a.isA(jsNullPtr) && b.isA(jsNullPtr)) {
-      // debug.printf('BOTH NULL', []);
       return bool.constValue(true);
     }
 
     // One value is null (`a === null`): check whether the other one is too.
     if (a.isA(jsNullPtr) || b.isA(jsNullPtr)) {
-      // debug.printf('ONE NULL', []);
       const other = instr.strictConvert(a.isA(jsNullPtr) ? b : a, jsValuePtr);
-      const otherJsType = other.type.toType.loadJsType(instr.builder, other);
+      const otherJsType = instr.loadStructField(other, "jsType");
       return instr.icmpEq(name, otherJsType, i32.constValue(jsNull.jsType));
     }
 
@@ -258,14 +256,12 @@ function strictEqFactory(
       (a.isA(i32) || a.isA(jsNumberPtr)) &&
       (b.isA(i32) || b.isA(jsNumberPtr))
     ) {
-      // debug.printf('BOTH NUM', []);
       const numA = a.isA(i32) ? a : instr.loadUnboxed(a);
       const numB = b.isA(i32) ? b : instr.loadUnboxed(b);
       return instr.icmpEq(name, numA, numB);
     }
 
     // A mix of types.
-    // debug.printf('MIX OF TYPES', []);
     const jsvA = instr.strictConvert(a, jsValuePtr);
     const jsvB = instr.strictConvert(b, jsValuePtr);
     return instr.call(name, funcs.strictEqAny, [jsvA, jsvB]);

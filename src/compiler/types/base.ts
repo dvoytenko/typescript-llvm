@@ -59,9 +59,11 @@ export class Type {
   }
 }
 
+export class PrimitiveType extends Type {}
+
 export interface BoxedType<BT extends Type> {
   unboxedType: BT;
-  loadUnboxed(builder: llvm.IRBuilder, ptr: Pointer<typeof this>): Value<BT>;
+  loadUnboxed(instr: llvm.IRBuilder, ptr: Pointer<typeof this>): Value<BT>;
   storeBoxed(
     builder: llvm.IRBuilder,
     ptr: Pointer<typeof this>,
@@ -125,7 +127,7 @@ export class ConstValue<T extends Type = Type> extends Value<T> {
   }
 }
 
-export class PointerType<T extends Type> extends Type {
+export class PointerType<T extends Type> extends PrimitiveType {
   static of<T extends Type>(type: T): PointerType<T> {
     return new PointerType<T>(type.context, type);
   }
@@ -191,7 +193,7 @@ export class Pointer<T extends Type = Type> extends Value<PointerType<T>> {
   }
 }
 
-export class VoidType extends Type {
+export class VoidType extends PrimitiveType {
   constructor(context: llvm.LLVMContext) {
     super(context, llvm.Type.getVoidTy(context));
   }

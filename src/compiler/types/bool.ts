@@ -1,7 +1,7 @@
 import llvm from "llvm-bindings";
-import { ConstValue, Type } from "./base";
+import { ConstValue, PrimitiveType } from "./base";
 
-export class BoolType extends Type {
+export class BoolType extends PrimitiveType {
   constructor(context: llvm.LLVMContext) {
     super(context, llvm.IntegerType.get(context, 1));
   }

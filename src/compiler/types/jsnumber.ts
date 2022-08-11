@@ -33,14 +33,6 @@ export class JsNumber
   }
 
   // TODO: move to JsPrimitiveType?
-  unboxLoad(
-    builder: llvm.IRBuilder,
-    ptr: Pointer<typeof this>
-  ): Value<I32Type> {
-    return this.load(builder, ptr, "value");
-  }
-
-  // TODO: move to JsPrimitiveType?
   loadUnboxed(
     builder: llvm.IRBuilder,
     ptr: Pointer<typeof this>

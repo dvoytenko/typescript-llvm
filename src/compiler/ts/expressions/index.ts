@@ -226,7 +226,7 @@ function objectLiteralExpressionFactory(context: CompilerContext) {
 
 function propertyAccessExpressionFactory(context: CompilerContext) {
   const { types, instr, jslib, checker, genExpr, declIfc } = context;
-  const { i32, i64, jsObject, vtableIfcField } = types;
+  const { i32, i64, jsObject } = types;
   const { builder } = instr;
   return (node: ts.PropertyAccessExpression) => {
     const target = genExpr(node.expression);
@@ -265,10 +265,9 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
             const retval = instr.alloca("val", propType);
             const valBlock = instr.block(context.currentFunc()!.func, "val");
 
-            const autoId = types.vtable.fields.itable.load(
-              builder,
+            const autoId = instr.loadStructField(
               instr.gepStructField(
-                jsObject.load(builder, targetPtr, "vtable"),
+                instr.loadStructField(targetPtr, "vtable"),
                 "itable"
               ),
               "autoId"
@@ -295,7 +294,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
             );
             const custPtr = instr.gepStructField(objPtr, "cust");
             const ifcPtr = instr.castPtr("ifc_ptr", custPtr, ifc.shapeType);
-            const autoVal = ifc.shapeType.load(builder, ifcPtr, propName);
+            const autoVal = instr.loadStructField(ifcPtr, propName);
             instr.store(retval, autoVal);
 
             instr.br(valBlock);
@@ -321,7 +320,7 @@ function propertyAccessExpressionFactory(context: CompilerContext) {
               fieldsPtr,
               i32.constValue(propIndex)
             );
-            const offset = vtableIfcField.load(builder, fieldPtr, "offset");
+            const offset = instr.loadStructField(fieldPtr, "offset");
 
             const targetPtrAsInt = builder.CreatePtrToInt(
               targetPtr.llValue,

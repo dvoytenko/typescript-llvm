@@ -1,8 +1,17 @@
 import llvm from "llvm-bindings";
-import { Pointer, PointerType, Type, VoidType } from "./base";
+import {
+  BoxedType,
+  ConstValue,
+  Pointer,
+  PointerType,
+  PrimitiveType,
+  Type,
+  Value,
+  VoidType,
+} from "./base";
 import { BoolType } from "./bool";
 import { FunctionType } from "./func";
-import { I32Type, I64Type, I8Type } from "./inttype";
+import { I32Type, I64Type, I8Type, IntType } from "./inttype";
 import { JsArray } from "./jsarray";
 import { JsNull } from "./jsnull";
 import { JsNumber } from "./jsnumber";
@@ -12,6 +21,23 @@ import { JsType, JsValue } from "./jsvalue";
 import { JsvMap } from "./jsvmap";
 import { StructFields, StructType } from "./struct";
 import { VTable, VTableIfc, VTableIfcField } from "./vtable";
+
+export {
+  BoolType,
+  BoxedType,
+  ConstValue,
+  I32Type,
+  I64Type,
+  IntType,
+  Pointer,
+  PointerType,
+  PrimitiveType,
+  StructType,
+  Type,
+  Value,
+  VoidType,
+  JsValue,
+};
 
 export interface Types {
   context: llvm.LLVMContext;

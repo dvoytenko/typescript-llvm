@@ -1,9 +1,9 @@
 import llvm from "llvm-bindings";
-import { ConstValue, Type } from "./base";
+import { ConstValue, PrimitiveType } from "./base";
 
 export type IntBits = 8 | 16 | 32 | 64;
 
-export class IntType<B extends IntBits> extends Type {
+export class IntType<B extends IntBits> extends PrimitiveType {
   constructor(context: llvm.LLVMContext, public readonly bits: B) {
     super(context, llvm.IntegerType.get(context, bits));
   }

@@ -1,13 +1,13 @@
 import llvm from "llvm-bindings";
-import { Type, Value } from "./base";
+import { PrimitiveType, Type, Value } from "./base";
 
 export type FunctionArgValues<Args extends Type[]> = {
   [index in keyof Args]: Value<Args[index]>;
 };
 
 export class FunctionType<
-  Ret extends Type,
-  Args extends [...Type[]]
+  Ret extends PrimitiveType,
+  Args extends [...PrimitiveType[]]
 > extends Type {
   constructor(
     context: llvm.LLVMContext,

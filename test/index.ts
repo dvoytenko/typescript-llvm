@@ -7,7 +7,7 @@ import { buildCycler } from "./llcycler";
 
 const TEST = null;
 const DIFF = true;
-const WASM = false;
+const WASM = true;
 const WASM_EXEC = false;
 const CYCLER = false;
 

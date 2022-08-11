@@ -1,3 +1,16 @@
+# STS - Static Typescript
+
+## To get started
+
+1. [Install LLVM](TODO).
+2. [Install WABT](https://github.com/WebAssembly/wabt).
+
+## Known issues
+
+1. I had to patch llvm-bindings in a few places. Not all of them have been released yet. E.g. see https://github.com/ApsarasX/llvm-bindings/issues/23.
+
+## Some common commands
+
 ### Assembly to bitcode:
 
 ```sh
@@ -5,7 +18,7 @@ llvm-as x.ll
 ls -l x.bc
 ```
 
-### To compile .ll files:
+### To compile .ll to machine code:
 
 ```sh
 llc x.ll -filetype=obj

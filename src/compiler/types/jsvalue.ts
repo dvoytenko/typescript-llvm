@@ -1,5 +1,4 @@
 import llvm from "llvm-bindings";
-import { Pointer, Value } from "./base";
 import { I32Type } from "./inttype";
 import { StructFields, StructType } from "./struct";
 
@@ -39,16 +38,21 @@ export class JsValue<
     fields: Fields,
     name?: string
   ) {
-    super(context, name ?? `JSV${jsType !== JsType.UNKNOWN ? jsType : ""}`, {
-      jsType: new I32Type(context),
-      ...fields,
-    });
+    super(
+      context,
+      name ?? `struct.JsValue${jsType !== JsType.UNKNOWN ? jsType : ""}`,
+      {
+        jsType: new I32Type(context),
+        ...fields,
+      }
+    );
   }
 
-  loadJsType(
-    builder: llvm.IRBuilder,
-    ptr: Pointer<typeof this>
-  ): Value<I32Type> {
-    return this.load(builder, ptr, "jsType");
-  }
+  // QQQQ
+  // loadJsType(
+  //   builder: llvm.IRBuilder,
+  //   ptr: Pointer<typeof this>
+  // ): Value<I32Type> {
+  //   return this.load(builder, ptr, "jsType");
+  // }
 }
