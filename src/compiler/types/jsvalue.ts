@@ -47,12 +47,4 @@ export class JsValue<
       }
     );
   }
-
-  // QQQQ
-  // loadJsType(
-  //   builder: llvm.IRBuilder,
-  //   ptr: Pointer<typeof this>
-  // ): Value<I32Type> {
-  //   return this.load(builder, ptr, "jsType");
-  // }
 }

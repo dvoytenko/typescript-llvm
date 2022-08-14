@@ -5,10 +5,10 @@ import { compile } from "../src/compiler/compiler";
 import { execFile } from "./wasmer";
 import { buildCycler } from "./llcycler";
 
-const TEST = null;
+const TEST = "six";
 const DIFF = true;
 const WASM = true;
-const WASM_EXEC = false;
+const WASM_EXEC = true;
 const CYCLER = false;
 
 console.log("Any specific test specified? ", process.argv[2]);
@@ -124,7 +124,7 @@ async function runCycler(workDir: string, file: string) {
 }
 
 function execLl(file: string): Promise<string> {
-  const cmd = "lli " + file;
+  const cmd = `lli ${file}`;
   return execCmd(cmd);
 }
 
@@ -151,7 +151,7 @@ async function buildWasm(llFile: string, opts?: string): Promise<string> {
   // 2. WASM file:
   const wasmFile = llFile.replace(".ll", ".wasm");
   await execCmd(
-    `wasm-ld ${objFile} -o ${wasmFile} -allow-undefined --entry "main" --import-memory`
+    `wasm-ld ${objFile} -o ${wasmFile} -mwasm32 -allow-undefined --entry "main" --import-memory`
   );
 
   // 3. WAT file:

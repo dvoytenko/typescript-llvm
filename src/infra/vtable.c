@@ -31,7 +31,7 @@ JsValue* vTable_getField(JsObject* ptr, JsString* fieldName) {
   VTableField* field = &fields[index];
 
   // The `JsCustObject.cust` is right after all `JsObject` fields.
-  void* cust = ((void*) ptr) + JSOBJECT_SIZE;
+  void* cust = (void*) (&ptr[1]);
   void* fptr = cust + field->offset;
 
   // Boxed values are always pointers.

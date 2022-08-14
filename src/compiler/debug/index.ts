@@ -38,8 +38,8 @@ function debugValueFactory(
   );
 
   return (value: Value) => {
-    const strPtr = instr.malloc("s", types.i8, types.i64.constValue(1000));
     if (value.type instanceof IntType) {
+      const strPtr = instr.malloc("s", types.i8, types.i64.constValue(1000));
       const fmtInt = builder.CreateGlobalStringPtr("<i%d %d>", "fmt.int");
       builder.CreateCall(
         snprintf,

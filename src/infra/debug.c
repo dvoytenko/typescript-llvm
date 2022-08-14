@@ -54,7 +54,7 @@ char* jsString_debug(JsString* arg) {
   char* s = malloc(1000);
   char* v = malloc(1000);
   int len = arg->length < 999 ? arg->length : 999;
-  memcpy(v, arg->chars, len);
+  __builtin_memcpy(v, arg->chars, len);
   v[len] = 0;
   snprintf(s, 1000, "JSV<str %d \"%s\">", arg->length, v);
   return s;
@@ -66,7 +66,7 @@ char* jsArray_debug(JsArray* arg) {
   char* arr_s = malloc(1000);
   arr_s[0] = 0;
   for (int i = 0; i < len; i++) {
-    strcat(arr_s, jsValue_debug(arr[i]));
+    __builtin_strcat(arr_s, jsValue_debug(arr[i]));
   }
 
   char* s = malloc(1000);
