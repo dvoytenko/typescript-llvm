@@ -8,6 +8,8 @@
 #include "jsstring.h"
 #include "jsvmap.h"
 
+void jsValue_debugIntercept(JsValue* arg);
+
 char* jsArray_debug(JsArray* arg);
 char* jsNumber_debug(JsNumber* arg);
 char* jsString_debug(JsString* arg);
