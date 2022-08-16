@@ -11,6 +11,7 @@
     "debug_ast": "npm run build && node ./out/src/debug_ast.js",
     "debug_ast:watch": "nodemon -e ts,tsx,json --ignore out --ignore dist --exec \"npm run debug_ast\"",
     "run_cycler": "npm run build && node ./out/test/cycler.js",
+    "run_wasmer": "npm run build && node ./out/test/run_wasmer.js",
     "test": "npm run make && npm run build && node ./out/test/index.js",
     "test:watch": "nodemon -e ts,tsx,json,c,h --ignore out --ignore dist --exec \"npm run test\"",
     "make": "make || exit 1",

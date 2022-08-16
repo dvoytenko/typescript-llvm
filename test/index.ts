@@ -105,7 +105,7 @@ async function test(file: string): Promise<void> {
 
 async function runCycler(workDir: string, file: string) {
   console.log("CYCLER: " + file);
-  const numberOfCycles = 100000;
+  const numberOfCycles = 10_000;
 
   const orig = await fsPromises.readFile(file);
 

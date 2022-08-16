@@ -32,11 +32,16 @@ int runner(int value) {
   return value * value;
 }
 
-int main(void) {
-  struct timeval tv1, tv2;
-  gettimeofday(&tv1, NULL);
+double currentTimeMillis() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (double) tv.tv_usec / 1e3 + (double) tv.tv_sec * 1e3;
+}
 
-  for (int i = 0; i < 1000; i++) {
+int main(void) {
+  double startTime = currentTimeMillis();
+
+  for (int i = 0; i < 100000000; i++) {
     runner(i);
   }
 
@@ -105,10 +110,11 @@ int main(void) {
   //   jsValue_debug(vTable_getField(jsv1o, field1a.field)),
   //   jsValue_debug(vTable_getField(jsv1o, field1b.field)));
 
-  gettimeofday(&tv2, NULL);
-  double elapsedMillis = (double) (tv2.tv_usec - tv1.tv_usec) / 1e3 +
-         (double) (tv2.tv_sec - tv1.tv_sec) * 1e3;
-  printf ("Total time = %f millis\n", elapsedMillis);
+  double endTime = currentTimeMillis();
+  double elapsedMillis = endTime - startTime;
+  char* s = (char*) malloc(1000);
+  snprintf(s, 1000, "Total time = %f millis", elapsedMillis);
+  puts(s);
 
   return 0;
 }

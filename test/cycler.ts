@@ -1,10 +1,12 @@
 import { cycle } from "./data/six";
 
+const numberOfCycles = 10_000;
+
 function run() {
   const buffer: any[] = [];
   console.log("START TIME: ", new Date());
   const startTime = performance.now();
-  for (let i = 0; i < 10_000_000; i++) {
+  for (let i = 0; i < numberOfCycles; i++) {
     buffer.push(cycle(i));
   }
   const endTime = performance.now();

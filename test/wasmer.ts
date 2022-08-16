@@ -9,6 +9,7 @@ export async function exec(contents: Buffer): Promise<void> {
   const output: string[] = [];
   const context: Context = {
     ptr: 8000,
+    // ptr: 0x100000,
     memory,
     output(v) {
       output.push(String(v));
@@ -22,6 +23,8 @@ export async function exec(contents: Buffer): Promise<void> {
       strcat: strcat.bind(null, context),
       snprintf: snprintf.bind(null, context),
       puts: puts.bind(null, context),
+      printf: printf.bind(null, context),
+      currentTimeMillis: () => performance.now(),
       __snprintf_chk: (
         ptr: number,
         maxLen: bigint,
@@ -86,15 +89,40 @@ function strcat(context: Context, destPtr: number, srcPtr: number) {
 function snprintf(
   context: Context,
   ptr: number,
+  maxBuffer: number | bigint,
+  fmtPtr: number,
+  vPtr: number
+) {
+  maxBuffer = Number(maxBuffer);
+  const { memory } = context;
+
+  const formatted = formatf(context, maxBuffer, fmtPtr, vPtr);
+
+  const res = new Uint8Array(memory.buffer, ptr, maxBuffer);
+  const resLen = Math.min(maxBuffer, formatted.length);
+  for (let i = 0; i < resLen; i++) {
+    res[i] = formatted.charCodeAt(i);
+  }
+  res[resLen] = 0;
+}
+
+function printf(context: Context, fmtPtr: number, vPtr: number) {
+  const { output } = context;
+
+  const formatted = formatf(context, 1000, fmtPtr, vPtr);
+  output(formatted);
+  return 0;
+}
+
+function formatf(
+  context: Context,
   maxBuffer: number,
   fmtPtr: number,
   vPtr: number
 ) {
-  const { memory } = context;
+  const fmt = readString(context, fmtPtr, 1000);
 
-  const fmt = readString(context, fmtPtr, maxBuffer);
-
-  const formatted = fmt.replace(/%./g, (mask: string) => {
+  return fmt.replace(/%./g, (mask: string) => {
     if (mask === "%s") {
       // It's a pointer.
       const sPtr = readPtr(context, vPtr);
@@ -109,15 +137,13 @@ function snprintf(
       vPtr += 4;
       return String(v);
     }
+    if (mask === "%f") {
+      const v = readF64(context, vPtr);
+      vPtr += 9;
+      return String(v);
+    }
     return "?";
   });
-
-  const res = new Uint8Array(memory.buffer, ptr, maxBuffer);
-  const resLen = Math.min(maxBuffer, formatted.length);
-  for (let i = 0; i < resLen; i++) {
-    res[i] = formatted.charCodeAt(i);
-  }
-  res[resLen] = 0;
 }
 
 function puts(context: Context, ptr: number) {
@@ -155,6 +181,13 @@ function readI32(context: Context, ptr: number): number {
   const { memory } = context;
   const slice = memory.buffer.slice(ptr, ptr + 4);
   const arr = new Uint32Array(slice);
+  return Number(arr[0]);
+}
+
+function readF64(context: Context, ptr: number): number {
+  const { memory } = context;
+  const slice = memory.buffer.slice(ptr, ptr + 8);
+  const arr = new Float64Array(slice);
   return Number(arr[0]);
 }
 
