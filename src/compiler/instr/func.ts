@@ -42,9 +42,12 @@ export class Function<Ret extends Type, Args extends [...Type[]]> {
       module
     );
     if (attrs) {
-      for (const attr of attrs) {
-        this.llFunc.addFnAttr(attr);
-      }
+      // TODO: Critical for optimization. See https://github.com/ApsarasX/llvm-bindings/issues/23.
+      //   To do a temporary workaround, use "llvm-bindings": "file:../llvm-bindings"
+      //   in the package.json.
+      // for (const attr of attrs) {
+      //   this.llFunc.addFnAttr(attr);
+      // }
     }
     this.args = type.args.map((type, index) => {
       return new Value(type, this.llFunc.getArg(index));

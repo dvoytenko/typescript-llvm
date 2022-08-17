@@ -5,7 +5,7 @@ import { compile } from "../src/compiler/compiler";
 import { execFile } from "./wasmer";
 import { buildCycler } from "./llcycler";
 
-const TEST = "six";
+const TEST = null;
 const DIFF = true;
 const WASM = true;
 const WASM_EXEC = true;
