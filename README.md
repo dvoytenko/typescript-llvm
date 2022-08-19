@@ -2,8 +2,10 @@
 
 ## To get started
 
-1. [Install LLVM](TODO).
-2. [Install WABT](https://github.com/WebAssembly/wabt).
+1. Ensure clang is installed.
+2. [Install LLVM](TODO).
+3. [Install WABT](https://github.com/WebAssembly/wabt).
+4. Run `npm install`.
 
 
 ## To run
