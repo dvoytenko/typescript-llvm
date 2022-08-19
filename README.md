@@ -5,6 +5,15 @@
 1. [Install LLVM](TODO).
 2. [Install WABT](https://github.com/WebAssembly/wabt).
 
+
+## To run
+
+```sh
+npm install
+npm run test
+```
+
+
 ## Known issues
 
 1. I had to patch llvm-bindings in a few places. Not all of them have been released yet. E.g. see https://github.com/ApsarasX/llvm-bindings/issues/23.
