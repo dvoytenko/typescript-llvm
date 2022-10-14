@@ -1,4 +1,4 @@
-# STS - Static Typescript
+# Typescript to LLVM Compiler
 
 ## To get started
 

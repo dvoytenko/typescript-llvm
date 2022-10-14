@@ -1,5 +1,5 @@
 {
-  "name": "stsc",
+  "name": "typescript_llvm",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -8,8 +8,6 @@
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "prettier": "prettier --config .prettierrc '**/*.ts' '**/*.tsx' --write",
     "build": "tsc --project tsconfig.json",
-    "debug_ast": "npm run build && node ./out/src/debug_ast.js",
-    "debug_ast:watch": "nodemon -e ts,tsx,json --ignore out --ignore dist --exec \"npm run debug_ast\"",
     "run_cycler": "npm run build && node ./out/test/cycler.js",
     "run_wasmer": "npm run build && node ./out/test/run_wasmer.js",
     "test": "npm run make && npm run build && node ./out/test/index.js",
@@ -18,7 +16,7 @@
     "make:watch": "nodemon -e c,h --ignore out --ignore dist --exec \"npm run make; lli out/infra/test-linked.ll\""
   },
   "author": "",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@types/node": "^18.0.3",
     "@typescript-eslint/eslint-plugin": "^5.31.0",
